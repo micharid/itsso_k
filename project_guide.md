@@ -1,6 +1,6 @@
 # 위탁판매 자동화 시스템 설계서 (Admin Tool)
 
-> python(django) + SQLAlchemy + PostgreSQL + APScheduler / Nginx + Ubuntu(Cafe24)
+> python(django) + SQLAlchemy + PostgreSQL + celery / Nginx + Ubuntu(Cafe24)
 > 내부 관리자용 어드민 툴 · RBAC 기반 · 다중 마켓/사입처 연동
 
 ---
@@ -154,13 +154,13 @@
 #### `user_roles` (N:N)
 | 컬럼 | 타입 | 제약 |
 |---|---|---|
-| user_id | BIGINT | FK→users, PK |
-| role_id | INT | FK→roles, PK |
+| user_id | BIGINT | PK |
+| role_id | INT | PK |
 
 #### `role_permissions` (N:N)
 | 컬럼 | 타입 | 제약 |
 |---|---|---|
-| role_id | INT | FK→roles, PK |
+| role_id | INT | PK |
 | permission_id | INT | FK→permissions, PK |
 
 #### `access_logs`
