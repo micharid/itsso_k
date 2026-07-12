@@ -7,7 +7,7 @@
 
 ## 1. 전체 아키텍처 요약
 
-이 시스템의 핵심 설계 원칙은 **"사입처 원본 상품(source_product)"과 "마켓별 등록 상품(listing)"을 물리적으로 분리**하는 것이다. 하나의 원본 상품이 쿠팡·스마트스토어·11번가에 각각 다른 판매가·옵션·노출상태로 등록되기 때문에, 원본은 재고/원가의 단일 진실 공급원(Single Source of Truth)으로 두고, 각 마켓 등록건은 원본을 FK로 참조하는 1:N 구조로 뽑아낸다. 이렇게 하면 사입처 재고가 0이 될 때 연결된 모든 마켓 listing을 한 번에 품절 처리하는 배치가 단순해진다.
+이 시스템의 핵심 설계 원칙은 **"사입처 원본 상품(source_product)"과 "마켓별 등록 상품(listing)"을 물리적으로 분리**하는 것이다. 하나의 원본 상품이 쿠팡·스마트스토어·11번가에 각각 다른 판매가·옵션·노출상태로 등록되기 때문에, 원본은 재고/원가의 단일 진실 공급원(Single Source of Truth)으로 두고, 각 마켓 등록건은 원본을 참조하는 1:N 구조로 뽑아낸다. 이렇게 하면 사입처 재고가 0이 될 때 연결된 모든 마켓 listing을 한 번에 품절 처리하는 배치가 단순해진다.
 
 주문 쪽은 **공통 주문 테이블(orders)로 통합하되, 마켓이 내려준 원본 JSON을 `raw_payload`(JSONB)에 그대로 보존**한다. 마켓마다 주문 포맷·정산 구조가 달라서, 정규화된 공통 컬럼으로는 정보 손실이 나기 때문이다. 조회·집계는 정규화 컬럼으로 하고, 분쟁·디버깅·마켓 스펙 변경 대응은 raw_payload로 한다. APScheduler가 주기적으로 (1) 마켓sㅇㅁ 주문 수집 (2) 사입처 재고 동기화 (3) 가격 동기화 배치를 돌리고, 모든 동기화 결과는 `sync_logs`에 남겨 실패 추적이 가능하게 한다. 대시보드·주문 리스트처럼 조회가 빈번한 화면은 실시간 집계 대신 `dashboard_daily_stats` 같은 비정규화 캐시 테이블을 배치로 갱신해 부하를 낮춘다.
 
@@ -161,13 +161,13 @@
 | 컬럼 | 타입 | 제약 |
 |---|---|---|
 | role_id | INT | PK |
-| permission_id | INT | FK→permissions, PK |
+| permission_id | INT | PK |
 
 #### `access_logs`
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
-| user_id | BIGINT | FK→users, NULL | 로그인 실패 시 NULL 가능 |
+| user_id | BIGINT | NULL | 로그인 실패 시 NULL 가능 |
 | action | VARCHAR(100) | NOT NULL | `login`, `order.update` 등 |
 | ip_address | INET | NULL | |
 | user_agent | TEXT | NULL | |
@@ -192,7 +192,7 @@
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
-| platform_id | INT | FK→platforms, NOT NULL | |
+| platform_id | INT | NOT NULL | |
 | account_name | VARCHAR(100) | NOT NULL | 스토어명/식별용 |
 | status | VARCHAR(20) | DEFAULT 'active' | `active`/`expired`/`error` |
 | last_synced_at | TIMESTAMPTZ | NULL | 마지막 동기화 시각 |
@@ -203,7 +203,7 @@
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
-| platform_account_id | BIGINT | FK→platform_accounts, NOT NULL | |
+| platform_account_id | BIGINT | NOT NULL | |
 | key_type | VARCHAR(30) | NOT NULL | `api_key`, `secret`, `access_token`, `refresh_token` |
 | value_encrypted | BYTEA | NOT NULL | **평문 저장 금지** |
 | expires_at | TIMESTAMPTZ | NULL | 토큰 만료 시각 |
@@ -222,7 +222,7 @@
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
-| supplier_platform_id | INT | FK→platforms, NOT NULL | 사입처 (오너클랜 등) |
+| supplier_platform_id | INT | NOT NULL | 사입처 (오너클랜 등) |
 | supplier_product_code | VARCHAR(100) | NOT NULL | 사입처 상품코드 |
 | name | VARCHAR(500) | NOT NULL | |
 | category | VARCHAR(100) | NULL, **INDEX** | |
@@ -240,7 +240,7 @@
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
-| source_product_id | BIGINT | FK→source_products, NOT NULL, **INDEX** | |
+| source_product_id | BIGINT | NOT NULL, **INDEX** | |
 | option_name | VARCHAR(200) | NOT NULL | "색상:블랙 / 사이즈:L" |
 | cost_price | INTEGER | NULL | 옵션별 추가원가 |
 | stock_qty | INTEGER | DEFAULT 0 | |
@@ -250,8 +250,8 @@
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
-| source_product_id | BIGINT | FK→source_products, NOT NULL, **INDEX** | 원본 참조 |
-| platform_account_id | BIGINT | FK→platform_accounts, NOT NULL | 어느 마켓 계정에 등록 |
+| source_product_id | BIGINT | NOT NULL, **INDEX** | 원본 참조 |
+| platform_account_id | BIGINT | NOT NULL | 어느 마켓 계정에 등록 |
 | market_product_id | VARCHAR(100) | NULL, **INDEX** | 마켓이 부여한 상품ID |
 | sale_price | INTEGER | NOT NULL | 판매가 (마켓별 상이) |
 | status | VARCHAR(20) | DEFAULT 'draft' | `draft`/`listed`/`soldout`/`suspended` |
@@ -265,8 +265,8 @@
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
-| listing_id | BIGINT | FK→listings, NOT NULL, **INDEX** | |
-| source_option_id | BIGINT | FK→source_product_options, NULL | 원본 옵션 매핑 |
+| listing_id | BIGINT | NOT NULL, **INDEX** | |
+| source_option_id | BIGINT | NULL | 원본 옵션 매핑 |
 | market_option_id | VARCHAR(100) | NULL | 마켓 옵션ID |
 | sale_price | INTEGER | NOT NULL | 옵션별 판매가 |
 
@@ -278,7 +278,7 @@
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
-| platform_account_id | BIGINT | FK→platform_accounts, NOT NULL, **INDEX** | |
+| platform_account_id | BIGINT | NOT NULL, **INDEX** | |
 | market_order_no | VARCHAR(100) | NOT NULL, **INDEX** | 마켓 주문번호 |
 | order_status | VARCHAR(30) | NOT NULL, **INDEX** | `new`/`paid`/`preparing`/`shipped`/`delivered`/`cancelled`/`returned` |
 | buyer_name | VARCHAR(100) | NULL | |
@@ -297,9 +297,9 @@
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
-| order_id | BIGINT | FK→orders, NOT NULL, **INDEX** | |
-| listing_id | BIGINT | FK→listings, NULL | 어느 등록상품 주문인지 |
-| source_product_id | BIGINT | FK→source_products, NULL | 발주 편의용 (비정규화 참조) |
+| order_id | BIGINT | NOT NULL, **INDEX** | |
+| listing_id | BIGINT | NULL | 어느 등록상품 주문인지 |
+| source_product_id | BIGINT | NULL | 발주 편의용 (비정규화 참조) |
 | product_name | VARCHAR(500) | NOT NULL | 주문 시점 상품명 스냅샷 |
 | option_name | VARCHAR(200) | NULL | |
 | quantity | INTEGER | NOT NULL | |
@@ -312,8 +312,8 @@
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
-| order_item_id | BIGINT | FK→order_items, NOT NULL, **INDEX** | |
-| supplier_platform_id | INT | FK→platforms, NOT NULL | |
+| order_item_id | BIGINT | NOT NULL, **INDEX** | |
+| supplier_platform_id | INT | NOT NULL | |
 | supplier_order_no | VARCHAR(100) | NULL | 사입처 발주번호 |
 | status | VARCHAR(30) | DEFAULT 'pending', **INDEX** | `pending`/`ordered`/`shipped`/`failed` |
 | ordered_at | TIMESTAMPTZ | NULL | |
@@ -323,7 +323,7 @@
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
-| purchase_order_id | BIGINT | FK→purchase_orders, NOT NULL, **INDEX** | |
+| purchase_order_id | BIGINT | NOT NULL, **INDEX** | |
 | courier_code | VARCHAR(30) | NULL | 택배사 코드 |
 | tracking_no | VARCHAR(100) | NULL, **INDEX** | 송장번호 |
 | status | VARCHAR(30) | DEFAULT 'ready' | `ready`/`shipped`/`delivered` |
@@ -339,7 +339,7 @@
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
 | job_type | VARCHAR(30) | NOT NULL, **INDEX** | `stock_sync`/`price_sync`/`order_collect` |
-| platform_account_id | BIGINT | FK→platform_accounts, NULL | |
+| platform_account_id | BIGINT | NULL | |
 | status | VARCHAR(20) | NOT NULL | `success`/`partial`/`failed` |
 | affected_count | INTEGER | DEFAULT 0 | 처리 건수 |
 | error_message | TEXT | NULL | 실패 상세 |
@@ -356,7 +356,7 @@
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | SERIAL | PK | |
-| platform_id | INT | FK→platforms, NOT NULL | |
+| platform_id | INT | NOT NULL | |
 | category | VARCHAR(100) | NULL | 카테고리별 수수료 (NULL=기본) |
 | fee_rate | NUMERIC(5,2) | NOT NULL | 수수료율(%) |
 | effective_from | DATE | NOT NULL | 적용 시작일 |
@@ -365,7 +365,7 @@
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGSERIAL | PK | |
-| platform_account_id | BIGINT | FK→platform_accounts, NOT NULL | |
+| platform_account_id | BIGINT | NOT NULL | |
 | period_start | DATE | NOT NULL | 정산 기간 |
 | period_end | DATE | NOT NULL | |
 | gross_sales | INTEGER | NOT NULL | 총 매출 |
@@ -382,7 +382,7 @@
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | stat_date | DATE | PK(복합) | 집계 일자 |
-| platform_id | INT | PK(복합), FK→platforms | |
+| platform_id | INT | PK(복합),  | |
 | order_count | INTEGER | DEFAULT 0 | 주문 건수 |
 | gross_sales | BIGINT | DEFAULT 0 | 매출액 |
 | total_cost | BIGINT | DEFAULT 0 | 원가 합 |

@@ -1,5 +1,3 @@
-fastapi
-uvicorn
-sqlalchemy
+django
+djangorestframework
 psycopg2-binary
-pytest
