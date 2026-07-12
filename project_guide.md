@@ -2,6 +2,7 @@
 
 > python(django) + SQLAlchemy + PostgreSQL + celery / Nginx + Ubuntu(Cafe24)
 > 내부 관리자용 어드민 툴 · RBAC 기반 · 다중 마켓/사입처 연동
+> github 브랜치 규칙: 개발 앞에 'dev' 붙히고 내용 추가 / 운영은 'prod'만 브랜치 구성
 
 ---
 
