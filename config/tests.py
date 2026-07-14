@@ -28,3 +28,19 @@ class AdminAndAPITest(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data['results']), 1)
+from django.test import TestCase
+from rest_framework.test import APIClient
+from rest_framework import status
+
+class APIRoutingTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_roles_endpoint(self):
+        response = self.client.get('/api/accounts/roles/')
+        # Should return 401 Unauthorized or 403 Forbidden because IsAuthenticated is required globally
+        self.assertIn(response.status_code, [401, 403])
+
+    def test_products_endpoint(self):
+        response = self.client.get('/api/products/source-products/')
+        self.assertIn(response.status_code, [401, 403])

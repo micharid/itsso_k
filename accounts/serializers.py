@@ -9,24 +9,24 @@ class UserSerializer(serializers.ModelSerializer):
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Role
-        exclude = ['password']
+        fields = '__all__'
 
 class PermissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Permission
-        exclude = ['password']
+        fields = '__all__'
 
 class UserRoleSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserRole
-        exclude = ['password']
+        fields = '__all__'
 
 class RolePermissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = RolePermission
-        exclude = ['password']
+        fields = '__all__'
 
 class AccessLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = AccessLog
-        exclude = ['password']
+        fields = '__all__'
