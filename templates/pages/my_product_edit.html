@@ -1,0 +1,228 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>???곹뭹 ?섏젙 ??ChannelP</title>
+<link rel="stylesheet" href="/assets/css/common.css?v=20260406d">
+<link rel="stylesheet" href="/assets/css/layout.css?v=20260406d">
+<link rel="stylesheet" href="/assets/css/components.css?v=20260406d">
+<style>
+.edit-layout{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);gap:16px}
+.edit-card{background:var(--bg-card);border:1px solid var(--border-default);border-radius:var(--radius);padding:18px}
+.edit-title{font-size:.82rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}
+.edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.edit-grid.single{grid-template-columns:1fr}
+.edit-thumb{width:100%;max-width:360px;aspect-ratio:1;border-radius:12px;object-fit:cover;background:var(--bg-hover);border:1px solid var(--border-default)}
+.edit-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+@media(max-width:900px){.edit-layout{grid-template-columns:1fr}.edit-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app-wrapper">
+  <header class="app-header">
+    <div class="header-left">
+      <button class="sidebar-toggle-btn" id="sidebarToggle"><span></span><span></span><span></span></button>
+      <span class="header-logo">ChannelP</span>
+    </div>
+    <div class="header-right">
+      <div class="header-user">
+        <span id="headerUsername">??/span>
+        <button class="btn btn-sm btn-ghost" id="backBtn">紐⑸줉?쇰줈</button>
+      </div>
+    </div>
+  </header>
+
+  <nav class="app-sidebar" id="appSidebar"></nav>
+
+  <main class="app-main">
+    <div class="page-header">
+      <div class="breadcrumb"><span>??/span> / <span>???곹뭹 愿由?/span> / <span>?섏젙</span></div>
+      <h1 class="page-title">???곹뭹 ?섏젙</h1>
+    </div>
+
+    <div class="edit-layout">
+      <section class="edit-card">
+        <div class="edit-title">?곹뭹 ?뺣낫</div>
+        <div class="edit-grid single" style="margin-bottom:14px">
+          <div class="form-group">
+            <label>?곹뭹紐?/label>
+            <input class="form-input" id="productName" placeholder="?곹뭹紐?>
+          </div>
+        </div>
+        <div class="edit-grid" style="margin-bottom:14px">
+          <div class="form-group">
+            <label>?먮ℓ媛</label>
+            <input class="form-input" id="salePrice" type="number" min="0" step="1">
+          </div>
+          <div class="form-group">
+            <label>?먭?</label>
+            <input class="form-input" id="originalPrice" type="number" min="0" step="1">
+          </div>
+        </div>
+        <div class="edit-grid" style="margin-bottom:14px">
+          <div class="form-group">
+            <label>移댄뀒怨좊━</label>
+            <input class="form-input" id="categoryName" placeholder="移댄뀒怨좊━">
+          </div>
+          <div class="form-group">
+            <label>?곹깭</label>
+            <select class="form-select" id="status">
+              <option value="ON_SALE">?먮ℓ以?/option>
+              <option value="EXPOSURE">?몄텧以?/option>
+              <option value="ACTIVE">?쒖꽦</option>
+              <option value="SUSPENSION">?먮ℓ以묐떒</option>
+              <option value="OUTOFSTOCK">?덉젅</option>
+              <option value="CLOSE">?먮ℓ醫낅즺</option>
+              <option value="HIDE">?④?</option>
+            </select>
+          </div>
+        </div>
+        <div class="edit-grid single">
+          <div class="form-group">
+            <label>?몃꽕??URL</label>
+            <input class="form-input" id="thumbnailUrl" placeholder="https://...">
+          </div>
+        </div>
+      </section>
+
+      <aside class="edit-card">
+        <div class="edit-title">?곸젏 / 留ㅽ븨</div>
+        <div style="display:flex;justify-content:center;margin-bottom:14px">
+          <img id="thumbnailPreview" class="edit-thumb" alt="?몃꽕??誘몃━蹂닿린">
+        </div>
+        <div class="edit-grid single" style="margin-bottom:14px">
+          <div class="form-group">
+            <label>?곸젏</label>
+            <input class="form-input" id="accountName" disabled>
+          </div>
+        </div>
+        <div class="edit-grid single" style="margin-bottom:14px">
+          <div class="form-group">
+            <label>留덉폆 ?곹뭹 ID</label>
+            <input class="form-input" id="marketProductId" disabled>
+          </div>
+        </div>
+        <div class="edit-grid" style="margin-bottom:14px">
+          <div class="form-group">
+            <label>?꾨ℓ ?곹뭹 ID</label>
+            <input class="form-input" id="wholesaleProductId" placeholder="?꾨ℓ泥??곹뭹 ID">
+          </div>
+          <div class="form-group">
+            <label>留덉쭊??(%)</label>
+            <input class="form-input" id="marginRate" type="number" min="0" max="500" step="0.1">
+          </div>
+        </div>
+        <div id="saveMessage" style="font-size:.82rem;color:var(--text-muted)">遺덈윭?ㅻ뒗 以?..</div>
+        <div class="edit-actions">
+          <a class="btn btn-ghost btn-sm" id="marketLink" href="#" target="_blank" rel="noopener" style="display:none">留덉폆?먯꽌 ?닿린</a>
+          <button class="btn btn-ghost btn-sm" id="cancelBtn">痍⑥냼</button>
+          <button class="btn btn-primary btn-sm" id="saveBtn">???/button>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<script src="/assets/js/sidebar.js?v=20260406d"></script>
+<script src="/assets/js/common.js?v=20260406d"></script>
+<script src="/assets/js/api.js?v=20260406d"></script>
+<script src="/assets/js/auth.js?v=20260406d"></script>
+<script src="/assets/js/theme.js?v=20260406d"></script>
+<script>
+'use strict';
+
+let currentProductId = null;
+
+function getQueryProductId() {
+  const params = new URLSearchParams(location.search);
+  return params.get('id');
+}
+
+function backToList() {
+  location.href = '/pages/my_products.html';
+}
+
+function fillForm(data) {
+  document.getElementById('productName').value = data.product_name || '';
+  document.getElementById('salePrice').value = data.sale_price ?? '';
+  document.getElementById('originalPrice').value = data.original_price ?? '';
+  document.getElementById('categoryName').value = data.category_name || '';
+  document.getElementById('status').value = data.status || 'ON_SALE';
+  document.getElementById('thumbnailUrl').value = data.thumbnail_url || '';
+  document.getElementById('accountName').value = `${data.market_account_name || '-'} / ${data.market_platform || '-'}`;
+  document.getElementById('marketProductId').value = data.market_product_id || '';
+  document.getElementById('wholesaleProductId').value = data.wholesale_product_id || '';
+  document.getElementById('marginRate').value = Number(data.price_margin_rate || 0).toFixed(1);
+  const thumbUrl = data.thumbnail_url || '';
+  const thumbSrc = thumbUrl.startsWith('http://') ? '/api/products/proxy-image?url=' + encodeURIComponent(thumbUrl) : thumbUrl;
+  document.getElementById('thumbnailPreview').src = thumbSrc;
+  document.getElementById('thumbnailPreview').style.display = thumbUrl ? 'block' : 'none';
+  document.getElementById('saveMessage').textContent = '?섏젙 ????ν븯?몄슂.';
+
+  const marketLink = document.getElementById('marketLink');
+  if (data.market_platform === 'smartstore' && data.market_product_id) {
+    marketLink.href = `https://smartstore.naver.com/main/products/${data.market_product_id}`;
+    marketLink.style.display = 'inline-flex';
+  } else {
+    marketLink.style.display = 'none';
+  }
+}
+
+async function loadProduct() {
+  currentProductId = getQueryProductId();
+  if (!currentProductId) {
+    document.getElementById('saveMessage').textContent = '?섎せ???묎렐?낅땲??';
+    return;
+  }
+
+  try {
+    const data = await request('GET', `/my-products/${currentProductId}`);
+    fillForm(data);
+  } catch (e) {
+    document.getElementById('saveMessage').textContent = `遺덈윭?ㅺ린 ?ㅽ뙣: ${e.message || e}`;
+  }
+}
+
+async function saveProduct() {
+  if (!currentProductId) return;
+
+  const body = {
+    product_name: document.getElementById('productName').value.trim(),
+    sale_price: document.getElementById('salePrice').value,
+    original_price: document.getElementById('originalPrice').value,
+    category_name: document.getElementById('categoryName').value.trim(),
+    status: document.getElementById('status').value,
+    thumbnail_url: document.getElementById('thumbnailUrl').value.trim(),
+    wholesale_product_id: document.getElementById('wholesaleProductId').value.trim(),
+    price_margin_rate: parseFloat(document.getElementById('marginRate').value || '0'),
+  };
+
+  try {
+    await request('PATCH', `/my-products/${currentProductId}`, body);
+    document.getElementById('saveMessage').textContent = '??λ릺?덉뒿?덈떎.';
+    showToast('?곹뭹 ?섏젙????λ릺?덉뒿?덈떎.');
+    await loadProduct();
+  } catch (e) {
+    document.getElementById('saveMessage').textContent = `????ㅽ뙣: ${e.message || e}`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  if (!getAccessToken() && typeof refreshTokens === 'function') await refreshTokens();
+  if (!getAccessToken()) {
+    location.href = '/login.html';
+    return;
+  }
+  document.getElementById('backBtn').addEventListener('click', backToList);
+  document.getElementById('cancelBtn').addEventListener('click', backToList);
+  document.getElementById('saveBtn').addEventListener('click', saveProduct);
+  document.getElementById('thumbnailUrl').addEventListener('input', (e) => {
+    document.getElementById('thumbnailPreview').src = e.target.value.trim();
+  });
+  loadProduct();
+});
+</script>
+</body>
+</html>

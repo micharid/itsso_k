@@ -1,0 +1,2986 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>상품 에디터 V2 — ChannelP</title>
+<link rel="stylesheet" href="/assets/css/common.css">
+<link rel="stylesheet" href="/assets/css/layout.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<style>
+/* ── 전체 레이아웃 — 좌(미리보기) : 우(상세·폼) ≈ 4 : 6 ─────────────────── */
+.editor-container {
+  display: grid;
+  grid-template-columns: minmax(260px, 2fr) minmax(320px, 3fr);
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 1024px) {
+  .editor-container { grid-template-columns: 1fr; }
+}
+
+/* ── 왼쪽 패널 ────────────────────────────────────── */
+.editor-left {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: sticky;
+  top: 12px;
+}
+
+/* 왼쪽: 상세이미지 전체 세로 미리보기 (OC 상품페이지와 유사) */
+.preview-scroll-outer {
+  position: relative;
+  width: 100%;
+  min-height: 280px;
+  max-height: calc(100vh - 240px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  scroll-behavior: smooth;
+}
+.preview-list-full { width: 100%; }
+.preview-full-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+}
+.preview-full-img:last-child { border-bottom: none; }
+.preview-full-img.selected-full {
+  outline: 3px solid var(--accent-primary);
+  outline-offset: -3px;
+}
+.preview-empty {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 220px;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 24px;
+  text-align: center;
+}
+.preview-empty svg { opacity: 0.35; }
+
+/* ── 대표이미지 캡처: 왼쪽 미리보기 칸에 직접 표시 (별도 작은 모달 없음) ── */
+.crop-inline-panel {
+  display: none;
+  flex-direction: column;
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.crop-inline-panel.open {
+  display: flex;
+}
+/* 편집 중에는 이 칸만 크게 쓰고, 바깥 이중 스크롤 방지 */
+.preview-scroll-outer.crop-active {
+  max-height: none;
+  min-height: min(88vh, 980px);
+  overflow: visible;
+}
+.editor-left.crop-active {
+  position: relative;
+  z-index: 5;
+}
+.crop-full-head {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-default);
+}
+.crop-full-viewport {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: min(52vh, 480px);
+  height: min(calc(100vh - 200px), 900px);
+  max-height: min(calc(100vh - 200px), 900px);
+  position: relative;
+  background: #0a0c10;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.preview-scroll-outer.crop-active .crop-full-viewport {
+  /* 왼쪽 열 전체 너비·큰 세로 작업면 */
+  min-height: min(58vh, 560px);
+  height: min(calc(100vh - 180px), 940px);
+  max-height: min(calc(100vh - 180px), 940px);
+}
+/* 합성 이미지는 배경 캔버스에 1회만 그림 — 오버레이는 어둡게+구멍만 매번 (드래그 지연 방지) */
+.crop-canvas-stack {
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  line-height: 0;
+}
+#cropBaseCanvas {
+  display: block;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  margin: 0 auto;
+  pointer-events: none;
+  vertical-align: top;
+}
+#cropFullCanvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  margin: 0;
+  cursor: crosshair;
+  touch-action: none;
+  vertical-align: top;
+}
+.crop-full-foot {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border-default);
+}
+
+/* 오른쪽: 대표이미지 카드 프레임 (상세이미지 스트립과 동일한 카드 톤) */
+.main-image-section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.main-image-frame-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.main-image-frame-title .main-image-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+
+/* 오른쪽 상단: 대표 썸네일 + 편집 버튼 (크롭 UI는 왼쪽 오버레이) */
+.main-image-top-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.main-image-thumb-wrap {
+  position: relative;
+  width: 112px;
+  height: 112px;
+  flex: 0 0 112px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+/* 대표 썸네일은 항상 정사각형 프레임을 채움(원본이 세로·가로로 길어도 '얇은 조각'처럼 보이지 않음) */
+#mainPreviewImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: none;
+  z-index: 1;
+}
+.main-image-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  pointer-events: none;
+  text-align: center;
+  padding: 6px;
+  z-index: 0;
+}
+.main-image-placeholder svg { opacity: 0.3; width: 36px; height: 36px; }
+.main-image-actions { flex: 1; min-width: 0; }
+.main-image-actions .main-image-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.main-image-actions-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.crop-preview-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.crop-preview-label { font-size: 12px; color: var(--text-secondary); }
+#cropPreviewCanvas {
+  width: 60px; height: 60px;
+  border: 2px solid var(--accent-primary);
+  border-radius: 6px;
+  background: #222;
+  flex: 0 0 60px;
+}
+.crop-hint { font-size: 12px; color: var(--text-muted); flex: 1; }
+
+/* 상세이미지 스트립 */
+.detail-images-section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.detail-images-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.detail-images-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  min-height: 80px;
+  align-items: center;
+}
+.detail-images-strip::-webkit-scrollbar { height: 4px; }
+.detail-thumb {
+  flex: 0 0 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 2px solid var(--border-default);
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.detail-thumb:hover { transform: scale(1.05); border-color: var(--text-secondary); }
+.detail-thumb.selected { border-color: var(--accent-primary); }
+
+.detail-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 10px 0;
+}
+
+/* 소스 정보 */
+.source-info-bar {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 6px 2px;
+}
+
+/* ── 오른쪽 패널 ───────────────────────────────────── */
+.editor-right {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: calc(100vh - 130px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.editor-right::-webkit-scrollbar { width: 4px; }
+
+/* 모드 배지 */
+.mode-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+}
+.mode-badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--tint-info);
+  color: var(--accent-primary);
+}
+.mode-id { font-size: 12px; color: var(--text-muted); }
+
+/* 섹션 공통 */
+.form-section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-default);
+}
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* 기본설정 체크박스 레이아웃 수정 */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.setting-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  flex: 1;
+}
+.setting-check input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  margin: 0;
+}
+.setting-check-label {
+  font-size: 13px;
+  color: var(--text-primary);
+  margin: 0;
+  cursor: pointer;
+}
+
+/* 옵션 그룹 */
+.option-group-item {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--bg-elevated);
+}
+.option-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.option-group-header input {
+  flex: 1;
+}
+.option-values-list { display: flex; flex-direction: column; gap: 6px; }
+.option-value-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.option-value-row input { flex: 1; }
+.btn-xs { padding: 2px 8px; font-size: 11px; }
+
+/* 저장 영역 */
+.save-section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#saveStatus {
+  font-size: 12px;
+  color: var(--text-muted);
+  min-height: 18px;
+  white-space: pre-wrap;
+}
+#saveStatus.ok { color: #4caf50; }
+#saveStatus.err { color: #f44336; }
+#saveStatus.warn-sw { color: #c62828; font-size: 12px; line-height: 1.45; }
+#saveStatus.warn-sw .sw-ok { color: #4caf50; display: block; margin-bottom: 6px; }
+
+/* OC 상품코드 카드 */
+.oc-code-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.oc-code-card-label { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
+.oc-code-card-code { font-size: 14px; font-weight: 700; color: var(--accent-primary); font-family: monospace; letter-spacing: 0.5px; }
+
+/* 카테고리 자동 추천 힌트 */
+.category-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  padding: 7px 10px;
+  margin-top: 6px;
+  line-height: 1.6;
+}
+.category-hint b { color: var(--accent-primary); }
+
+/* 상품명 추천 */
+.name-suggest-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-size: 12px; color: var(--text-secondary);
+  cursor: pointer;
+}
+.name-suggest-item:hover { border-color: var(--accent-primary); color: var(--text-primary); }
+.name-suggest-label { font-size: 10px; color: var(--text-muted); flex-shrink: 0; min-width: 28px; }
+
+/* 가격 자동계산 바 */
+.price-calc-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 7px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  margin-top: -4px; margin-bottom: 4px;
+}
+.price-calc-result { font-size: 12px; color: var(--text-secondary); flex: 1; }
+.price-calc-result b { color: var(--accent-primary); }
+.price-calc-result .calc-margin-ok  { color: #4caf50; }
+.price-calc-result .calc-margin-low { color: #f44336; }
+
+/* 마켓 등록 체크박스 섹션 */
+.market-register-section { margin-top: 4px; }
+.market-register-section .section-title { font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:8px; }
+.market-check-list { display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
+.market-check-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+}
+.market-check-item:hover { border-color: var(--accent-primary); }
+.market-check-item input[type=checkbox] { width:15px; height:15px; cursor:pointer; flex-shrink:0; }
+.market-check-item .mci-platform { font-size:13px; font-weight:600; flex-shrink:0; min-width:90px; }
+.market-check-item .mci-account { font-size:12px; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ss-register-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+#ssApiResultPanel {
+  max-height: 200px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  display: none;
+}
+#ssApiResultPanel.ok  { border-color: #4caf50; }
+#ssApiResultPanel.err { border-color: #f44336; }
+
+/* ── 등록 전 체크리스트 패널 ─────────────────────────────── */
+.checklist-section {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.checklist-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px; font-weight: 600;
+}
+.checklist-header:hover { background: var(--bg-hover, #2a2a2a); }
+.checklist-toggle { font-size: 10px; color: var(--text-muted); transition: transform .2s; }
+.checklist-toggle.open { transform: rotate(90deg); }
+.checklist-summary { margin-left: auto; display: flex; gap: 6px; font-size: 11px; font-weight: 400; }
+.cs-pass { color: #4caf50; }
+.cs-fail { color: #f44336; }
+.cs-warn { color: #ff9800; }
+.cs-load { color: var(--text-muted); }
+.checklist-body { padding: 0; }
+
+.cl-group { border-top: 1px solid var(--border-default); }
+.cl-group-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  font-size: 11px; font-weight: 600; color: var(--text-secondary);
+  cursor: pointer; background: transparent;
+}
+.cl-group-header:hover { background: var(--bg-hover, rgba(255,255,255,.03)); }
+.cl-group-toggle { font-size: 9px; color: var(--text-muted); transition: transform .15s; }
+.cl-group-toggle.open { transform: rotate(90deg); }
+.cl-group-body { padding: 4px 0 6px 0; }
+.cl-group-summary { margin-left: auto; display: flex; gap: 4px; font-size: 10px; }
+
+.cl-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 4px 12px 4px 24px;
+  font-size: 11px; line-height: 1.4;
+}
+.cl-icon { width: 14px; flex-shrink: 0; text-align: center; margin-top: 1px; }
+.cl-label { color: var(--text-muted); min-width: 80px; flex-shrink: 0; }
+.cl-value { color: var(--text-primary); flex: 1; word-break: break-all; }
+.cl-value.pass { color: #4caf50; }
+.cl-value.fail { color: #f44336; }
+.cl-value.warn { color: #ff9800; }
+.cl-value.info { color: var(--text-secondary); }
+.cl-value.load { color: var(--text-muted); font-style: italic; }
+</style>
+</head>
+<body>
+<div class="app-wrapper">
+  <header class="app-header">
+    <div class="header-left">
+      <button class="sidebar-toggle-btn" id="sidebarToggle"><span></span><span></span><span></span></button>
+      <span class="header-logo">ChannelP</span>
+    </div>
+    <div class="header-right">
+      <div class="header-user">
+        <span id="headerUsername">—</span>
+        <button class="btn btn-sm btn-ghost" id="logoutBtn">로그아웃</button>
+      </div>
+    </div>
+  </header>
+
+  <nav class="app-sidebar" id="appSidebar"></nav>
+
+  <main class="app-main">
+    <div class="page-header">
+      <div class="breadcrumb"><span>홈</span> / <span>상품 에디터</span></div>
+      <h1 class="page-title">상품 에디터 V2</h1>
+    </div>
+
+    <div class="editor-container">
+
+      <!-- ═══ 왼쪽 패널: 상세 전체 미리보기 + (편집 시) 정사각형 캡처 오버레이 ═══ -->
+      <div class="editor-left" id="editorLeft">
+
+        <div class="preview-scroll-outer" id="previewScrollOuter">
+          <!-- 대표 편집: 미리보기와 같은 왼쪽 칸에 합성 캔버스 표시 (별도 모달 없음) -->
+          <div id="cropInlinePanel" class="crop-inline-panel" aria-hidden="true">
+            <div class="crop-full-head" id="cropFullHead">
+              아래는 <b>상세 미리보기와 같은 이미지</b>를 한 줄로 이어 붙인 작업판입니다. <b>스크롤</b>하며 원하는 위치에 정사각형을 맞추세요.
+              <b>안쪽 드래그</b>=이동 · <b>모서리</b>=크기 · <b>빈 곳 드래그</b>=새 영역 · <b>저장</b>=<b>1000×1000</b> JPEG
+            </div>
+            <div class="crop-full-viewport" id="cropFullViewport">
+              <div class="crop-canvas-stack" id="cropCanvasStack">
+                <canvas id="cropBaseCanvas" width="800" height="520"></canvas>
+                <canvas id="cropFullCanvas" width="800" height="520"></canvas>
+              </div>
+            </div>
+            <div class="crop-full-foot" id="cropInlineFoot">
+              <div class="crop-preview-wrap">
+                <span class="crop-preview-label">선택 영역</span>
+                <canvas id="cropPreviewCanvas" width="100" height="100"></canvas>
+              </div>
+              <span class="crop-hint" style="flex:1;min-width:140px;font-size:12px;color:var(--text-muted);">Esc = 취소 · 저장은 오른쪽 상단</span>
+              <button type="button" class="btn btn-primary btn-sm" id="saveCropBtn" style="display:none !important;" aria-hidden="true">대표이미지 저장</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="cancelCropBtn">취소</button>
+            </div>
+          </div>
+          <div class="preview-list-full" id="previewListFull"></div>
+          <div class="preview-empty" id="previewEmptyState">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+              <path d="M21 15l-5-5L5 21"/>
+            </svg>
+            <span>상세 이미지가 없습니다.<br>필요 시 OC 새로고침을 시도하세요.</span>
+          </div>
+
+        </div>
+
+        <!-- 상세이미지 스트립 -->
+        <div class="detail-images-section">
+          <div class="detail-images-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
+            </svg>
+            상세이미지 <span id="imageCountBadge" class="badge badge-default" style="font-size:11px;padding:1px 7px;">0</span>
+            <span style="font-size:11px;color:var(--text-muted);margin-left:4px;">클릭 → 대표 편집에 쓸 이미지 선택</span>
+          </div>
+          <div class="detail-images-strip" id="detailStrip">
+            <span class="detail-empty">이미지 없음</span>
+          </div>
+        </div>
+
+        <!-- 소스 정보 -->
+        <div class="source-info-bar" id="sourceInfoBar"></div>
+      </div>
+
+      <!-- ═══ 오른쪽 패널: 대표이미지 + 폼 ═══ -->
+      <div class="editor-right">
+
+        <!-- 대표 이미지: 썸네일 + 편집(왼쪽 미리보기에서 정사각형 캡처) -->
+        <div class="main-image-section" id="mainImageSection">
+          <div class="main-image-frame-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
+            </svg>
+            대표 이미지
+            <span class="badge badge-default" style="font-size:11px;padding:1px 7px;">스마트스토어</span>
+            <span class="main-image-hint">편집 = 왼쪽 미리보기 <b>같은 칸</b>에서 긴 작업판으로 잘라 1000×1000 (별도 작은 창 없음)</span>
+          </div>
+          <div class="main-image-top-row">
+            <div class="main-image-thumb-wrap" id="mainThumbWrap">
+              <img id="mainPreviewImg" alt="대표이미지">
+              <div class="main-image-placeholder" id="mainPlaceholder">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                  <path d="M21 15l-5-5L5 21"/>
+                </svg>
+                <span>미리보기 없음</span>
+              </div>
+            </div>
+            <div class="main-image-actions">
+              <div class="main-image-action-buttons">
+                <button type="button" class="btn btn-primary btn-sm" id="btnEditMainImage">대표 이미지 편집</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btnSaveMainCropRight" style="display:none;">대표이미지 저장</button>
+              </div>
+              <p class="main-image-actions-hint">
+                <b>「대표 이미지 편집」</b>을 누르면 <b>왼쪽 미리보기 칸</b>이 긴 작업판으로 바뀝니다(별도 작은 창 없음). 위·아래로 <b>스크롤</b>해 원하는 구간을 찾으세요.
+                처음에는 <b>정사각형이 없습니다.</b> 작업판 이미지 위에서 <b>드래그</b>해 잘라 쓸 <b>네모를 먼저 그리세요.</b> 그다음 <b>안쪽 드래그</b>로 옮기고, <b>파란 모서리</b>로 크기를 바꿀 수 있습니다. 다른 곳을 다시 드래그하면 <b>새 영역</b>을 지정합니다.
+                맞춘 뒤 오른쪽 위 <b>「대표이미지 저장」</b>을 누르면 1000×1000으로 올라가고, 여기 썸네일에도 바로 반영됩니다. <b>Esc</b> 또는 왼쪽 아래 <b>취소</b>로 나갈 수 있습니다.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- OC 상품코드 카드 -->
+        <div class="oc-code-card" id="ocCodeCard" style="display:none">
+          <div>
+            <div class="oc-code-card-label">오너클랜 상품코드</div>
+            <div class="oc-code-card-code" id="ocCodeDisplay">—</div>
+          </div>
+          <a id="ocCodeLink" href="#" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">바로가기 ↗</a>
+        </div>
+
+        <!-- 모드 배지 -->
+        <div class="mode-header">
+          <span class="mode-badge" id="modeBadge">신규 소싱 업로드 준비 모드</span>
+          <span class="mode-id" id="modeId"></span>
+        </div>
+
+        <!-- 기본 정보 -->
+        <div class="form-section">
+          <div class="section-title">기본 정보</div>
+          <div class="form-group">
+            <label>상품명</label>
+            <input id="fName" class="form-input" type="text" placeholder="편집 상품명 입력">
+            <div id="nameSuggestList" style="display:none;margin-top:4px;display:flex;flex-direction:column;gap:3px;"></div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label>공급가</label>
+              <input id="fSupplyPrice" class="form-input" type="number" min="0" placeholder="0">
+            </div>
+            <div class="form-group">
+              <label>판매가</label>
+              <input id="fSellPrice" class="form-input" type="number" min="0" placeholder="0">
+            </div>
+          </div>
+          <!-- 가격 자동 계산 -->
+          <div class="price-calc-bar" id="priceCalcBar">
+            <div class="price-calc-result" id="priceCalcResult">공급가 입력 후 자동 계산</div>
+            <button class="btn btn-secondary btn-sm" id="applyCalcPriceBtn" style="display:none;" title="추천 판매가를 다시 적용">↺ 재적용</button>
+          </div>
+          <div class="form-group">
+            <label>키워드 (상품 구분)</label>
+            <input id="fKeywords" class="form-input" type="text" placeholder="예: 티셔츠, 반팔, 여성">
+          </div>
+          <div class="form-group">
+            <label>검색 태그 <span style="font-size:11px;color:#aaa;">최대 10개 · 쉼표 구분 · 스마트스토어 검색 노출용</span></label>
+            <input id="fSearchTags" class="form-input" type="text" placeholder="자동 생성 후 수정 가능 — 브랜드명·카테고리명 제외">
+            <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;" id="searchTagChips"></div>
+            <div style="font-size:11px;color:#888;margin-top:4px;">⚠ 브랜드명·타 마켓명·판매처명·무관한 단어 금지 (판매 금지 사유)</div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label>원산지</label>
+              <select id="fOriginCountry" class="form-input">
+                <option value="">-- 선택 / 미표기 (원산지 표시 제외) --</option>
+                <option value="한국">한국 (국산)</option>
+                <option value="중국">중국</option>
+                <option value="베트남">베트남</option>
+                <option value="인도네시아">인도네시아</option>
+                <option value="인도">인도</option>
+                <option value="방글라데시">방글라데시</option>
+                <option value="미국">미국</option>
+                <option value="이탈리아">이탈리아</option>
+                <option value="기타">기타</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>업로드 마켓</label>
+              <select id="fTargetMarket" class="form-input">
+                <option value="">전체 (모든 마켓)</option>
+                <option value="smartstore">스마트스토어</option>
+                <option value="coupang">쿠팡</option>
+                <option value="elevenst">11번가</option>
+                <option value="tossshopping">토스쇼핑</option>
+              </select>
+            </div>
+            <!-- 마켓 계정 선택 제거 — 등록 시 해당 마켓 전 계정에 자동 업로드 -->
+          </div>
+        </div>
+
+        <!-- 기본설정 (수정: 체크박스 + 레이블 정렬) -->
+        <div class="form-section">
+          <div class="section-title">기본설정</div>
+          <div class="setting-row">
+            <label class="setting-check" for="fAutoFill">
+              <input type="checkbox" id="fAutoFill">
+              <span class="setting-check-label">배송 기본값 자동입력</span>
+            </label>
+            <button class="btn btn-secondary btn-sm" id="saveDefaultsBtn" style="white-space:nowrap;">현재 값을 기본값으로 저장</button>
+          </div>
+        </div>
+
+        <!-- 카테고리 -->
+        <div class="form-section">
+          <div class="section-title">카테고리</div>
+          <div class="form-group">
+            <label>카테고리 경로 (텍스트)</label>
+            <input id="fCategoryPath" class="form-input" type="text" placeholder="예: 뷰티 > 메이크업 > 립 > 틴트">
+          </div>
+          <div class="form-group">
+            <label>카테고리 코드 (스마트스토어) — 오너클랜 제공 시 자동 입력</label>
+            <input id="fCategoryCode" class="form-input" type="text" placeholder="OC 상품 동기화 시 자동 · 필요 시만 수정" oninput="_onCategoryCodeInput()">
+            <div id="categoryHintPanel" class="category-hint" style="display:none"></div>
+            <div id="categoryChildrenPanel" style="display:none;margin-top:6px;"></div>
+          </div>
+        </div>
+
+        <!-- 배송 정보 -->
+        <div class="form-section">
+          <div class="section-title">배송 정보</div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label>배송비 정책</label>
+              <select id="fShippingPolicy" class="form-input">
+                <option value="paid">유료배송</option>
+                <option value="free">무료배송</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>배송비 (유료시)</label>
+              <input id="fShippingFee" class="form-input" type="number" min="0" value="" placeholder="OC 조회 후 자동">
+            </div>
+          </div>
+        </div>
+
+        <!-- 옵션 -->
+        <div class="form-section">
+          <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>옵션</span>
+            <button class="btn btn-secondary btn-sm" id="addOptionGroupBtn">+ 옵션 그룹 추가</button>
+          </div>
+          <div id="optionGroupsContainer"></div>
+          <div id="noOptionsMsg" style="font-size:13px;color:var(--text-muted);">옵션 없음 (단일상품)</div>
+        </div>
+
+        <!-- 등록 전 체크리스트 -->
+        <div class="form-section" id="checklistSection" style="padding:0;">
+          <div class="checklist-section">
+            <div class="checklist-header" onclick="toggleChecklist()">
+              <span class="checklist-toggle open" id="checklistToggleIcon">▶</span>
+              <span>등록 전 체크리스트</span>
+              <div class="checklist-summary" id="checklistSummary">
+                <span class="cs-load">대기 중…</span>
+              </div>
+            </div>
+            <div class="checklist-body" id="checklistBody">
+              <!-- JS로 그룹/항목 렌더링 -->
+            </div>
+          </div>
+        </div>
+
+        <!-- 마켓 등록 -->
+        <div class="save-section">
+          <div id="mainImageUrlDisplay" style="font-size:12px;color:var(--accent-primary);word-break:break-all;display:none;"></div>
+          <div class="market-register-section">
+            <div class="section-title">마켓 등록</div>
+            <div class="market-check-list" id="marketCheckList">
+              <!-- 등록된 마켓 계정만 JS로 동적 삽입 -->
+            </div>
+            <button class="btn btn-primary" id="registerBtn" style="width:100%;">선택 마켓에 등록</button>
+          </div>
+          <div class="ss-register-hint" style="margin-top:8px;">
+            카테고리 코드·판매가 입력 후 등록하세요.
+          </div>
+          <div id="saveStatus"></div>
+          <pre id="ssApiResultPanel"></pre>
+        </div>
+
+      </div><!-- editor-right -->
+    </div><!-- editor-container -->
+  </main>
+</div><!-- app-wrapper -->
+
+<script src="/assets/js/sidebar.js"></script>
+<script src="/assets/js/common.js"></script>
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/auth.js"></script>
+<script>
+/* ═══════════════════════════════════════════════════════
+   상태
+═══════════════════════════════════════════════════════ */
+let productData = null;      // 서버에서 받은 도매상품 데이터
+let detailImages = [];        // 상세이미지 URL 배열
+let selectedImgUrl = '';      // 현재 크롭 중인 이미지 URL
+let uploadedMainImageUrl = '';// 서버 업로드 후 확정된 대표이미지 URL
+let editorSourceProductId = ''; // 오너클랜 상품코드 — 서버 저장 파일명 `{코드}.jpg` (고정 URL: /cdn/marketize/auto/{코드}.jpg)
+let cropImg = null;           // 크롭용 Image 객체
+let optionGroupCount = 0;     // 옵션 그룹 ID 카운터
+/** 업로드 직후 썸네일에 쓰는 blob: URL — 서버 URL로 바꿀 때 revoke */
+let _mainPreviewBlobUrl = null;
+
+/* 크롭 상태 — 선택한 정사각형(캔버스 좌표)이 원본 픽셀로 변환되어 1000×1000 저장됨 */
+const crop = {
+  active: false,
+  selectionReady: false,      // 첫 드래그(또는 기존 박스 밖 드래그)로 영역 확정 전까지 false
+  x: 0, y: 0, size: 0,       // 캔버스 좌표 기준 정사각형(미선택 시 0)
+  dragging: false,
+  resizing: false,           // 'tl'|'tr'|'bl'|'br'
+  rubberband: false,         // 빈 곳에서 드래그해 새 정사각형 지정 (스니핑)
+  rbAx: 0, rbAy: 0, rbBx: 0, rbBy: 0,
+  startMouseX: 0, startMouseY: 0,
+  startCropX: 0, startCropY: 0, startCropSize: 0,
+  // 이미지가 캔버스에 그려진 실제 위치/크기
+  imgDrawX: 0, imgDrawY: 0, imgDrawW: 0, imgDrawH: 0,
+  minBox: 24, // 합성 캔버스가 크면 함께 키움
+};
+
+const CROP_MIN = 24;
+
+function _pointInImageDraw(mx, my) {
+  return mx >= crop.imgDrawX && mx <= crop.imgDrawX + crop.imgDrawW &&
+    my >= crop.imgDrawY && my <= crop.imgDrawY + crop.imgDrawH;
+}
+
+/** 드래그 두 점으로 정사각형 (캔버스 좌표) — 이미지 안으로만 */
+function _squareFromRubber(x0, y0, x1, y1) {
+  const MIN = crop.minBox || CROP_MIN;
+  const left = Math.min(x0, x1);
+  const top = Math.min(y0, y1);
+  const rw = Math.abs(x1 - x0);
+  const rh = Math.abs(y1 - y0);
+  let side = Math.max(MIN, Math.min(rw, rh));
+  let x = left;
+  let y = top;
+  const { imgDrawX, imgDrawY, imgDrawW, imgDrawH } = crop;
+  side = Math.min(side, imgDrawW, imgDrawH);
+  x = Math.max(imgDrawX, Math.min(x, imgDrawX + imgDrawW - side));
+  y = Math.max(imgDrawY, Math.min(y, imgDrawY + imgDrawH - side));
+  if (x + side > imgDrawX + imgDrawW) x = imgDrawX + imgDrawW - side;
+  if (y + side > imgDrawY + imgDrawH) y = imgDrawY + imgDrawH - side;
+  return { x, y, size: side };
+}
+
+function _cropDocMove(e) {
+  if (!crop.rubberband) return;
+  const canvas = document.getElementById('cropFullCanvas');
+  const { x, y } = getCanvasPos(e, canvas);
+  crop.rbBx = x;
+  crop.rbBy = y;
+  scheduleDrawCrop();
+}
+
+function _cropDocUp() {
+  if (!crop.rubberband) return;
+  document.removeEventListener('mousemove', _cropDocMove);
+  document.removeEventListener('mouseup', _cropDocUp);
+  const fin = _squareFromRubber(crop.rbAx, crop.rbAy, crop.rbBx, crop.rbBy);
+  crop.x = fin.x;
+  crop.y = fin.y;
+  crop.size = fin.size;
+  crop.rubberband = false;
+  crop.selectionReady = true;
+  drawCrop();
+}
+
+/* ═══════════════════════════════════════════════════════
+   초기화
+═══════════════════════════════════════════════════════ */
+async function boot() {
+  if (!getAccessToken()) { location.href = '/login.html'; return; }
+  const me = await API.auth.me().catch(() => null);
+  if (!me) { location.href = '/login.html'; return; }
+  document.getElementById('headerUsername').textContent = me.username || '—';
+  document.getElementById('logoutBtn').onclick = logout;
+
+  const params = new URLSearchParams(location.search);
+  const wholesaleId = params.get('wholesale_id');
+  const keyword = params.get('keyword') || '';
+  const mode = params.get('mode') || 'source';
+
+  // 모드 배지
+  const modeLabels = { source: '신규 소싱 업로드 준비 모드', keyword: '키워드 기반 모드', edit: '편집 모드' };
+  document.getElementById('modeBadge').textContent = modeLabels[mode] || mode;
+  if (wholesaleId) document.getElementById('modeId').textContent = `wholesale_id=${wholesaleId}`;
+  if (keyword) document.getElementById('fKeywords').value = keyword;
+
+  // 마켓 계정 목록 로드 (체크리스트·고객센터 번호 조회용 — 상품보다 먼저)
+  await loadMarketAccounts();
+
+  // 상품 데이터 로드 (?oc_key= 또는 ?source_product_id= 로 오너클랜 키 강제 가능)
+  if (wholesaleId) await loadProduct(wholesaleId);
+
+  // 기본설정 자동입력 체크박스
+  document.getElementById('fAutoFill').addEventListener('change', function () {
+    if (this.checked) applyDefaults();
+  });
+  document.getElementById('saveDefaultsBtn').onclick = saveDefaults;
+
+  // 옵션 추가
+  document.getElementById('addOptionGroupBtn').onclick = addOptionGroup;
+
+  // 등록 버튼
+  document.getElementById('registerBtn').onclick = registerMarkets;
+
+  // 가격 자동계산: 공급가 변경 시
+  let _calcTimer = null;
+  document.getElementById('fSupplyPrice').addEventListener('input', () => {
+    clearTimeout(_calcTimer);
+    _calcTimer = setTimeout(calcPricePreview, 600);
+  });
+  const sellEl = document.getElementById('fSellPrice');
+  if (sellEl) {
+    sellEl.addEventListener('input', () => {
+      clearTimeout(_calcTimer);
+      _calcTimer = setTimeout(calcPricePreview, 500);
+    });
+  }
+  document.getElementById('applyCalcPriceBtn').onclick = () => {
+    const price = document.getElementById('applyCalcPriceBtn').dataset.price;
+    if (price) document.getElementById('fSellPrice').value = price;
+  };
+
+  document.getElementById('saveCropBtn').onclick = uploadCrop;
+  const btnSaveRight = document.getElementById('btnSaveMainCropRight');
+  if (btnSaveRight) btnSaveRight.onclick = uploadCrop;
+  document.getElementById('cancelCropBtn').onclick = exitCropMode;
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && crop.active) {
+      e.preventDefault();
+      exitCropMode();
+    }
+  });
+  document.getElementById('btnEditMainImage').onclick = () => {
+    openDetailCropEditor();
+  };
+}
+
+/* ─── 상품 데이터 로드 ─────────────────────────────── */
+async function loadProduct(id) {
+  try {
+    const qs = new URLSearchParams(location.search || '');
+    const selfFromUrl = (
+      qs.get('selfcode') ||
+      qs.get('oc_key') ||
+      qs.get('source_product_id') ||
+      qs.get('product_no') ||
+      ''
+    ).trim();
+    productData = await API.products.getEditorOcLive(id, selfFromUrl ? { selfcode: selfFromUrl } : {});
+    renderDetailImages(productData.images || []);
+    populateForm(productData);
+    const parts = [productData.platform, productData.category, productData.brand].filter(Boolean);
+    let barTxt = parts.join(' > ');
+    if (productData.editor_note_ko) barTxt += ' · ' + productData.editor_note_ko;
+    document.getElementById('sourceInfoBar').textContent = barTxt;
+  } catch (e) {
+    document.getElementById('sourceInfoBar').textContent = '상품 로드 실패: ' + (e.message || e);
+    return;
+  }
+
+  // 공급가 로드 후 가격 자동계산
+  calcPricePreview();
+
+  // 카테고리 자동 매칭 (bulk-hints, 백그라운드)
+  try {
+    const hints = await API.products.editorBulkHints(id);
+    const ssCode = hints?.smartstore?.category_code_suggested || '';
+    const ocCatFull = hints?.ownerclan?.category_full || '';
+    const naverPaths = hints?.naver_shopping?.path_samples || [];
+
+    // 카테고리 경로 자동 채움 (비어있을 때만)
+    const catPathEl = document.getElementById('fCategoryPath');
+    if (catPathEl && !catPathEl.value && ocCatFull) {
+      catPathEl.value = ocCatFull;
+    }
+
+    // 스마트스토어 카테고리 코드 자동 채움 + 힌트 (OC openMarketCategories 우선)
+    const catCodeEl = document.getElementById('fCategoryCode');
+    const hintPanel = document.getElementById('categoryHintPanel');
+    if (ssCode && catCodeEl) {
+      if (!catCodeEl.value) catCodeEl.value = ssCode;
+      if (hintPanel) {
+        const naverSample = naverPaths[0] || '';
+        const src = hints?.smartstore?.category_code_source || 'OC';
+        let html = `스마트스토어 카테고리: <b>${ssCode}</b>`;
+        html += (src === 'oc_metadata' || src === 'oc_metadata_root')
+          ? ` <span style="color:var(--text-muted)">(오너클랜 metadata 제공)</span>`
+          : src === 'keyword_map_fallback'
+          ? ` <span style="color:var(--accent-warning,#f90)">(키워드 매핑 — OC 미제공)</span>`
+          : ` <span style="color:var(--text-muted)">(${src})</span>`;
+        if (naverSample) html += `<br>네이버쇼핑 검색 참고 경로: ${naverSample}`;
+        hintPanel.innerHTML = html;
+        hintPanel.style.display = 'block';
+      }
+    }
+  } catch (_) { /* 힌트 실패 무시 */ }
+
+  // 체크리스트 + 카테고리 leaf 확인 (마켓 계정 로드 후)
+  setTimeout(() => {
+    if ((document.getElementById('fCategoryCode')?.value || '').trim()) {
+      _lookupCategoryCode();
+    }
+    runChecklist();
+  }, 500);
+}
+
+// ── 카테고리 코드 lookup ──────────────────────────────────────────────────
+let _catLookupTimer = null;
+
+function _onCategoryCodeInput() {
+  clearTimeout(_catLookupTimer);
+  _catLookupTimer = setTimeout(() => {
+    _lookupCategoryCode();
+    runChecklist();
+  }, 700);
+}
+
+async function _lookupCategoryCode() {
+  const code = (document.getElementById('fCategoryCode')?.value || '').trim();
+  const nameEl = document.getElementById('categoryNameDisplay');
+  const childrenEl = document.getElementById('categoryChildrenPanel');
+  if (!code || !nameEl) return;
+
+  // 스마트스토어 account_id 가져오기
+  const ssCheck = document.querySelector('.market-check-item[data-market="smartstore"] input[type=checkbox]');
+  const accountId = ssCheck?.dataset?.accountId || '';
+  if (!accountId) {
+    nameEl.textContent = '스마트스토어 계정을 먼저 선택하세요.';
+    nameEl.style.color = 'var(--text-muted)';
+    nameEl.style.display = 'block';
+    return;
+  }
+
+  nameEl.textContent = '카테고리 확인 중…';
+  nameEl.style.color = 'var(--text-muted)';
+  nameEl.style.display = 'block';
+  if (childrenEl) childrenEl.style.display = 'none';
+
+  try {
+    const res = await fetch(`/api/products/editor-v2/smartstore/category-info?code=${encodeURIComponent(code)}&account_id=${encodeURIComponent(accountId)}`, {
+      headers: { 'Authorization': `Bearer ${getAccessToken()}` }
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      nameEl.textContent = `⚠ ${err.detail || '카테고리를 찾을 수 없습니다.'}`;
+      nameEl.style.color = 'var(--accent-danger, #e44)';
+      return;
+    }
+    const data = await res.json();
+    const wholeName = data.wholeCategoryName || data.name || code;
+
+    if (data.isLeaf) {
+      nameEl.innerHTML = `✅ <b>${wholeName}</b> (leaf 카테고리 — 등록 가능)`;
+      nameEl.style.color = 'var(--accent-success, #3a3)';
+      if (childrenEl) childrenEl.style.display = 'none';
+    } else {
+      nameEl.innerHTML = `⚠ <b>${wholeName}</b> — 상위 카테고리입니다. 아래에서 하위를 선택하세요.<br><small style="color:var(--text-muted)">등록 시 자동으로 첫 번째 leaf로 이동합니다.</small>`;
+      nameEl.style.color = 'var(--accent-warning, #f90)';
+      if (childrenEl && data.children?.length) {
+        const btns = data.children.map(c =>
+          `<button type="button" class="btn btn-secondary btn-sm" style="margin:2px;" onclick="document.getElementById('fCategoryCode').value='${c.id}';_lookupCategoryCode();">${c.name}</button>`
+        ).join('');
+        childrenEl.innerHTML = `<div style="font-size:12px;margin-bottom:4px;">하위 카테고리 선택:</div>${btns}`;
+        childrenEl.style.display = 'block';
+      }
+    }
+  } catch (e) {
+    nameEl.textContent = '카테고리 확인 실패 (네트워크 오류)';
+    nameEl.style.color = 'var(--text-muted)';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 등록 전 체크리스트 엔진
+// 확장: MARKET_CHECKS에 쿠팡/토스 항목 추가만 하면 됨
+// ══════════════════════════════════════════════════════════════════
+
+const CL_ICON = { pass: '✅', fail: '❌', warn: '⚠️', info: 'ℹ️', load: '⏳' };
+
+function _getSelectedSmartstoreCustomerPhone() {
+  const cb = document.querySelector('.market-check-item[data-market="smartstore"] input[type=checkbox]');
+  const aid = cb?.dataset?.accountId;
+  if (!aid || !window._marketAccountById) return '';
+  const acc = window._marketAccountById[aid];
+  const ds = (acc && acc.delivery_settings) || {};
+  return String(ds.customer_service_phone || '').trim();
+}
+
+// ── 체크 정의 (group, id, label, fn) ─────────────────────────────
+// fn(data) → { status:'pass'|'fail'|'warn'|'info'|'load', value:'표시값', detail:'' }
+// data = { p(productData), supplyPrice, sellPrice, keywords, categoryCode, images,
+//          shippingPolicy, shippingFee, mainImageSet, accountId }
+
+const CHECKS_SMARTSTORE = [
+  // ── OC API 스냅샷 (눈으로 검증 — 배송·원산지 원본)
+  { group: 'OC API 스냅샷', id: 'oc_sync', label: '동기화(스냅샷)',
+    fn: d => {
+      const od = (typeof productData !== 'undefined' && productData && productData.oc_detail) ? productData.oc_detail : {};
+      if (od.oc_graphql_item && typeof od.oc_graphql_item === 'object')
+        return { status: 'pass', value: 'oc_graphql_item 저장됨 · 배송/원산지/옵션 근거' };
+      return { status: 'fail', value: '없음 → 상품 OC 새로고침(refresh-images) 먼저' };
+    }
+  },
+  { group: 'OC API 스냅샷', id: 'oc_fee_snap', label: 'OC 택배비(원본)',
+    fn: d => {
+      const od = (typeof productData !== 'undefined' && productData && productData.oc_detail) ? productData.oc_detail : {};
+      const ocg = od.oc_graphql_item;
+      if (!ocg) return { status: 'fail', value: '스냅샷 없음 — 새로고침' };
+      if (ocg.shippingFee === undefined || ocg.shippingFee === null)
+        return { status: 'warn', value: 'shippingFee 없음 — OC API/키 확인' };
+      const fee = parseInt(ocg.shippingFee, 10) || 0;
+      if (fee > 0) return { status: 'pass', value: `${fee.toLocaleString()}원 (GraphQL shippingFee)` };
+      return { status: 'warn', value: `${fee}원 — 웹 유료인데 0이면 새로고침·API` };
+    }
+  },
+  { group: 'OC API 스냅샷', id: 'oc_origin_snap', label: 'OC 원산지(원문)',
+    fn: d => {
+      const od = (typeof productData !== 'undefined' && productData && productData.oc_detail) ? productData.oc_detail : {};
+      const ocg = od.oc_graphql_item || {};
+      const t = String(ocg.origin || od.origin || od.origin_country || '').trim();
+      if (!t) return { status: 'fail', value: '없음 — 새로고침' };
+      return { status: 'pass', value: t.length > 72 ? t.slice(0, 72) + '…' : t };
+    }
+  },
+
+  // ── 기본 정보
+  { group: '기본 정보', id: 'name', label: '상품명',
+    fn: d => {
+      const v = (document.getElementById('fName')?.value || '').trim();
+      if (!v) return { status: 'fail', value: '비어 있음' };
+      if (v.length > 100) return { status: 'fail', value: `${v.length}자 (최대 100자)` };
+      return { status: 'pass', value: `"${v.slice(0,30)}${v.length>30?'…':''}" (${v.length}자)` };
+    }
+  },
+  { group: '기본 정보', id: 'keywords', label: '키워드',
+    fn: d => {
+      const v = (document.getElementById('fKeywords')?.value || '').trim();
+      if (!v) return { status: 'warn', value: '미입력 (등록은 가능)' };
+      const arr = v.split(',').map(s=>s.trim()).filter(Boolean);
+      if (arr.length > 10) return { status: 'warn', value: `${arr.length}개 (권장 10개 이하)` };
+      return { status: 'pass', value: `${arr.length}개 입력됨` };
+    }
+  },
+  { group: '기본 정보', id: 'origin', label: '원산지',
+    fn: d => {
+      const od = (typeof productData !== 'undefined' && productData && productData.oc_detail) ? productData.oc_detail : {};
+      const ocg = od.oc_graphql_item || {};
+      const ocOrigin = String(ocg.origin || od.origin || od.origin_country || '').trim();
+      const v = document.getElementById('fOriginCountry')?.value || '';
+      const parts = ocOrigin.split(/[|,\/]/).map(s => s.trim()).filter(Boolean);
+      const ocChina = parts.some(p => p.includes('중국') || p.toLowerCase().includes('china'));
+      const ocOverseas = ocOrigin.includes('해외');
+      if ((ocChina || ocOverseas) && v === '한국')
+        return { status: 'fail', value: `OC "${ocOrigin.slice(0, 32)}…" 인데 국산(한국) 선택` };
+      if (ocChina && !v)
+        return { status: 'fail', value: 'OC에 중국인데 드롭다운 미선택 → 중국 선택' };
+      if (ocOrigin && (ocOrigin.includes('기타') || ocOrigin.includes('상세정보')) && !ocOrigin.includes('해외')) {
+        return { status: 'pass', value: `OC: ${ocOrigin.slice(0, 36)}… → 등록 시 02(기타)` };
+      }
+      if (!v && !ocOrigin) return { status: 'info', value: '미표기 → 원산지표시제외(03)' };
+      if (!v && ocOrigin) return { status: 'info', value: `OC 원산지: ${ocOrigin.slice(0, 40)}` };
+      return { status: 'pass', value: (v && ocOrigin ? `${v} (OC:${ocOrigin.slice(0, 24)}…)` : (v || ocOrigin)) };
+    }
+  },
+
+  // ── 카테고리
+  { group: '카테고리', id: 'category_code', label: '카테고리 코드',
+    async: true,
+    fn: async d => {
+      const code = (document.getElementById('fCategoryCode')?.value || '').trim();
+      if (!code) return { status: 'fail', value: '미입력' };
+      if (!d.accountId) return { status: 'warn', value: `${code} (계정 없어 leaf 확인 불가)` };
+      try {
+        const res = await fetch(
+          `/api/products/editor-v2/smartstore/category-info?code=${encodeURIComponent(code)}&account_id=${encodeURIComponent(d.accountId)}`,
+          { headers: { Authorization: `Bearer ${getAccessToken()}` } }
+        );
+        if (!res.ok) return { status: 'fail', value: `${code} — 존재하지 않는 코드` };
+        const info = await res.json();
+        const name = info.wholeCategoryName || info.name || code;
+        if (info.isLeaf) return { status: 'pass', value: `${code} — ${name}` };
+        return { status: 'warn', value: `${code} — ${name} (상위 카테고리, 등록 시 자동 leaf 탐색)` };
+      } catch {
+        return { status: 'warn', value: `${code} (확인 실패 — 네트워크 오류)` };
+      }
+    }
+  },
+
+  // ── 가격/마진
+  { group: '가격/마진', id: 'supply_price', label: '공급가',
+    fn: d => {
+      const v = parseInt(document.getElementById('fSupplyPrice')?.value || '0');
+      if (!v) return { status: 'fail', value: '0원' };
+      return { status: 'pass', value: `${v.toLocaleString()}원` };
+    }
+  },
+  { group: '가격/마진', id: 'sell_price', label: '판매가',
+    fn: d => {
+      const sell = parseInt(document.getElementById('fSellPrice')?.value || '0');
+      const sup  = parseInt(document.getElementById('fSupplyPrice')?.value || '0');
+      if (!sell) return { status: 'fail', value: '0원' };
+      if (sell <= sup) return { status: 'fail', value: `${sell.toLocaleString()}원 (공급가 이하)` };
+      return { status: 'pass', value: `${sell.toLocaleString()}원` };
+    }
+  },
+  { group: '가격/마진', id: 'margin', label: '순마진',
+    fn: d => {
+      const sell = parseInt(document.getElementById('fSellPrice')?.value || '0');
+      const sup  = parseInt(document.getElementById('fSupplyPrice')?.value || '0');
+      if (!sell || !sup) return { status: 'load', value: '계산 대기 중' };
+      // 간이 계산: 스마트스토어 8% + 부가세 4% 보수적 추정
+      const fee = Math.round(sell * 0.08);
+      const vat = Math.round(sell * 0.04);
+      const net = sell - sup - fee - vat;
+      const pct = ((net / sell) * 100).toFixed(1);
+      if (net < 0 || parseFloat(pct) < 10)
+        return { status: 'fail', value: `${pct}% (최소 10% 미만)` };
+      return { status: 'pass', value: `${pct}% (약 ${net.toLocaleString()}원)` };
+    }
+  },
+
+  // ── 이미지
+  { group: '이미지', id: 'main_image', label: '대표이미지',
+    fn: d => {
+      const set = !!window.uploadedMainImageUrl;
+      const hasImg = (productData?.images || []).length > 0;
+      if (!set && !hasImg) return { status: 'fail', value: '대표이미지 없음 (크롭 필요)' };
+      if (!set) return { status: 'warn', value: '상세이미지 첫 번째 사용 예정 (크롭 권장)' };
+      return { status: 'pass', value: '크롭 이미지 설정됨' };
+    }
+  },
+  { group: '이미지', id: 'detail_images', label: '상세이미지',
+    fn: d => {
+      const cnt = (productData?.images || []).length;
+      if (!cnt) return { status: 'fail', value: '없음' };
+      return { status: 'pass', value: `${cnt}장` };
+    }
+  },
+
+  // ── 배송
+  { group: '배송', id: 'shipping', label: '배송비',
+    fn: d => {
+      const policy = document.getElementById('fShippingPolicy')?.value || '';
+      let fee = parseInt(document.getElementById('fShippingFee')?.value || '0', 10);
+      const od = (typeof productData !== 'undefined' && productData && productData.oc_detail) ? productData.oc_detail : {};
+      const ocg = od.oc_graphql_item || {};
+      if (!fee && ocg.shippingFee != null) fee = parseInt(ocg.shippingFee, 10) || 0;
+      if (!fee && od.shipping_fee != null) fee = parseInt(od.shipping_fee, 10) || 0;
+      const ocFeeNum = ocg.shippingFee != null ? (parseInt(ocg.shippingFee, 10) || 0) : 0;
+      if (policy === 'free' && ocFeeNum > 0)
+        return { status: 'fail', value: `에디터는 무료인데 OC 택배 ${ocFeeNum}원 — 역마진 위험` };
+      if (policy === 'free') return { status: 'pass', value: '무료배송 (OC·에디터 동일)' };
+      if (!fee) return { status: 'warn', value: '유료인데 금액 0 — OC 새로고침 또는 배송비 입력' };
+      return { status: 'pass', value: `유료 ${fee.toLocaleString()}원 (선결제 PREPAID)` };
+    }
+  },
+
+  // ── SmartStore 고정값
+  { group: 'SmartStore 고정값', id: 'fix_asd', label: 'A/S 담당자',
+    fn: d => {
+      const ph = _getSelectedSmartstoreCustomerPhone();
+      if (!ph) return { status: 'warn', value: '설정 → 플랫폼 계정 → 스마트스토어에 고객센터 전화 미입력' };
+      return { status: 'pass', value: `등록 시 동일 번호 사용 (${ph})` };
+    }
+  },
+  { group: 'SmartStore 고정값', id: 'fix_ast', label: 'A/S 전화',
+    fn: d => {
+      const ph = _getSelectedSmartstoreCustomerPhone();
+      if (!ph) return { status: 'warn', value: '플랫폼 계정에 고객센터 전화 저장 필요' };
+      return { status: 'pass', value: ph };
+    }
+  },
+  { group: 'SmartStore 고정값', id: 'fix_naver', label: '네이버쇼핑 노출',
+    fn: d => ({ status: 'pass', value: 'ON (naverShoppingRegistration=true)' })
+  },
+  { group: 'SmartStore 고정값', id: 'fix_pay', label: '배송비 결제',
+    fn: d => {
+      const pol = document.getElementById('fShippingPolicy')?.value || '';
+      let fee = parseInt(document.getElementById('fShippingFee')?.value || '0', 10);
+      const od = (typeof productData !== 'undefined' && productData && productData.oc_detail) ? productData.oc_detail : {};
+      const ocg = od.oc_graphql_item || {};
+      const ocFee = ocg.shippingFee != null ? (parseInt(ocg.shippingFee, 10) || 0) : null;
+      if (!fee && od.shipping_fee != null) fee = parseInt(od.shipping_fee, 10) || 0;
+      if (ocFee != null && ocFee > 0 && pol === 'free')
+        return { status: 'fail', value: `OC 택배 ${ocFee}원인데 무료배송 — 유료+금액 맞춤` };
+      if (pol === 'free') return { status: 'pass', value: '무료배송 · 결제 PREPAID(무료유형)' };
+      return { status: 'pass', value: `유료 ${fee ? fee.toLocaleString() + '원' : '?'} · 선결제 PREPAID` };
+    }
+  },
+  { group: 'SmartStore 고정값', id: 'fix_seller_code', label: '판매자상품코드',
+    fn: d => {
+      const code = (window.editorSourceProductId || '').trim()
+        || (typeof productData !== 'undefined' && productData && String(productData.source_product_id || '').trim())
+        || '';
+      if (!code) return { status: 'warn', value: '없음 — OC 상품코드(source_product_id) 확인' };
+      return { status: 'pass', value: code };
+    }
+  },
+  { group: 'SmartStore 고정값', id: 'fix_origin_code', label: '원산지 코드',
+    fn: d => {
+      const od = (typeof productData !== 'undefined' && productData && productData.oc_detail) ? productData.oc_detail : {};
+      const ocg = od.oc_graphql_item || {};
+      const ocOrigin = String(ocg.origin || od.origin || od.origin_country || '').trim();
+      const v = document.getElementById('fOriginCountry')?.value || '';
+      const parts = ocOrigin.split(/[|,\/]/).map(s => s.trim()).filter(Boolean);
+      const ocChina = parts.some(p => p.includes('중국') || p.toLowerCase().includes('china'));
+      const ocOverseas = ocOrigin.includes('해외');
+      if ((ocChina || ocOverseas) && v === '한국')
+        return { status: 'fail', value: '네이버 등록 시 01 수입 — 국산(00)과 충돌' };
+      if (ocOrigin && (ocOrigin.includes('기타(상세') || (ocOrigin.includes('기타') && !ocOverseas))) {
+        return { status: 'pass', value: '02 — 기타 (문구 반영)' };
+      }
+      if (!v && !ocOrigin) return { status: 'info', value: '03 — 원산지표시제외' };
+      const lower = (v || ocOrigin).toLowerCase();
+      if (lower.includes('한국') || lower.includes('korea') || v === '한국')
+        return { status: 'info', value: '00 — 국산' };
+      if (ocChina || ocOverseas || v === '중국')
+        return { status: 'pass', value: '01 — 수입산 (content에 원산지)' };
+      if (!v && ocOrigin) return { status: 'info', value: `OC → 01/02 (${ocOrigin.slice(0, 28)}…)` };
+      return { status: 'info', value: `드롭다운: ${v || '—'}` };
+    }
+  },
+];
+
+// ── 렌더러 ────────────────────────────────────────────────────────
+let _clResults = {};    // id → {status, value}
+let _clOpen    = true;  // 전체 패널 열림 여부
+const _clGroupOpen = {}; // groupName → boolean
+
+function toggleChecklist() {
+  _clOpen = !_clOpen;
+  const body = document.getElementById('checklistBody');
+  const icon = document.getElementById('checklistToggleIcon');
+  if (body) body.style.display = _clOpen ? '' : 'none';
+  if (icon) icon.classList.toggle('open', _clOpen);
+}
+
+function _renderChecklist() {
+  const body = document.getElementById('checklistBody');
+  if (!body) return;
+
+  // 그룹 집계
+  const groups = {};
+  CHECKS_SMARTSTORE.forEach(c => {
+    if (!groups[c.group]) groups[c.group] = [];
+    groups[c.group].push(c);
+  });
+
+  let html = '';
+  Object.entries(groups).forEach(([gName, items]) => {
+    const open = _clGroupOpen[gName] !== false; // 기본 열림
+    const counts = { pass:0, fail:0, warn:0, info:0, load:0 };
+    items.forEach(c => { const s = (_clResults[c.id]||{}).status||'load'; counts[s]++; });
+
+    const summHtml = [
+      counts.pass ? `<span class="cs-pass">✅${counts.pass}</span>` : '',
+      counts.fail ? `<span class="cs-fail">❌${counts.fail}</span>` : '',
+      counts.warn ? `<span class="cs-warn">⚠${counts.warn}</span>` : '',
+      counts.load ? `<span class="cs-load">⏳${counts.load}</span>` : '',
+    ].filter(Boolean).join('');
+
+    html += `
+      <div class="cl-group">
+        <div class="cl-group-header" onclick="_toggleClGroup('${gName.replace(/'/g,"\\'")}')">
+          <span class="cl-group-toggle ${open?'open':''}" id="clgt_${gName.replace(/\s/g,'_')}">▶</span>
+          ${gName}
+          <div class="cl-group-summary">${summHtml}</div>
+        </div>
+        <div class="cl-group-body" id="clgb_${gName.replace(/\s/g,'_')}" style="display:${open?'':'none'}">
+    `;
+    items.forEach(c => {
+      const r = _clResults[c.id] || { status: 'load', value: '확인 중…' };
+      const icon = CL_ICON[r.status] || '○';
+      html += `
+        <div class="cl-item">
+          <span class="cl-icon">${icon}</span>
+          <span class="cl-label">${c.label}</span>
+          <span class="cl-value ${r.status}">${r.value||''}</span>
+        </div>`;
+    });
+    html += `</div></div>`;
+  });
+
+  body.innerHTML = html;
+  _updateChecklistSummary();
+}
+
+function _toggleClGroup(gName) {
+  _clGroupOpen[gName] = !(_clGroupOpen[gName] !== false);
+  const key = gName.replace(/\s/g,'_');
+  const body = document.getElementById(`clgb_${key}`);
+  const icon = document.getElementById(`clgt_${key}`);
+  if (body) body.style.display = _clGroupOpen[gName] !== false ? '' : 'none';
+  if (icon) icon.classList.toggle('open', _clGroupOpen[gName] !== false);
+}
+
+function _updateChecklistSummary() {
+  const el = document.getElementById('checklistSummary');
+  if (!el) return;
+  const counts = { pass:0, fail:0, warn:0, info:0, load:0 };
+  CHECKS_SMARTSTORE.forEach(c => {
+    const s = (_clResults[c.id]||{}).status||'load';
+    counts[s]++;
+  });
+  el.innerHTML = [
+    counts.pass ? `<span class="cs-pass">✅ ${counts.pass}</span>` : '',
+    counts.fail ? `<span class="cs-fail">❌ ${counts.fail}</span>` : '',
+    counts.warn ? `<span class="cs-warn">⚠ ${counts.warn}</span>` : '',
+    counts.load ? `<span class="cs-load">⏳ ${counts.load}</span>` : '',
+  ].filter(Boolean).join(' ');
+}
+
+// ── 실행 ─────────────────────────────────────────────────────────
+async function runChecklist() {
+  _clResults = {};
+  _renderChecklist();
+
+  const accountId = document.querySelector('.market-check-item[data-market="smartstore"] input[data-account-id]')?.dataset?.accountId || '';
+  const data = { accountId };
+
+  // 1단계: 동기 체크 즉시 실행
+  CHECKS_SMARTSTORE.filter(c => !c.async).forEach(c => {
+    try { _clResults[c.id] = c.fn(data); }
+    catch { _clResults[c.id] = { status: 'warn', value: '체크 오류' }; }
+  });
+  _renderChecklist();
+
+  // 2단계: 비동기 체크 (결과 나올 때마다 업데이트)
+  const asyncChecks = CHECKS_SMARTSTORE.filter(c => c.async);
+  await Promise.all(asyncChecks.map(async c => {
+    _clResults[c.id] = { status: 'load', value: '확인 중…' };
+    try {
+      _clResults[c.id] = await c.fn(data);
+    } catch {
+      _clResults[c.id] = { status: 'warn', value: '확인 실패' };
+    }
+    _renderChecklist();
+  }));
+}
+
+function _suggestNames(p) {
+  const original = (p.name || '').trim();
+  if (!original) return [];
+
+  const suggestions = new Set();
+
+  // 카테고리 키워드 추출 (패션의류>남성의류>티셔츠 → ['패션', '남성', '티셔츠'])
+  const catParts = (p.category || '').split(/[>\/]/).map(s => s.trim()).filter(s => s.length >= 2);
+  const lastCat = catParts[catParts.length - 1] || '';
+
+  // 1) 불필요한 접두어 제거 (숫자코드, 영문단어, 특수문자 앞부분)
+  const cleaned = original
+    .replace(/^\[.*?\]\s*/, '')           // [브랜드명] 제거
+    .replace(/^[A-Z0-9_\-]+\s+/i, '')     // 영문코드 앞부분 제거
+    .replace(/\s+/g, ' ').trim();
+  if (cleaned && cleaned !== original) suggestions.add(cleaned);
+
+  // 2) 카테고리 앞에 붙이기
+  if (lastCat && !original.includes(lastCat)) {
+    suggestions.add(`${lastCat} ${cleaned || original}`);
+  }
+
+  // 3) 핵심 단어만 추출 (괄호 내용, 사이즈 표기 제거)
+  const coreOnly = original
+    .replace(/\(.*?\)/g, '')
+    .replace(/\[.*?\]/g, '')
+    .replace(/\b(FREE|S|M|L|XL|2XL|3XL)\b/gi, '')
+    .replace(/\s+/g, ' ').trim();
+  if (coreOnly && coreOnly !== original && coreOnly.length > 4) suggestions.add(coreOnly);
+
+  return [...suggestions].slice(0, 3);
+}
+
+// ── 검색 태그 자동 생성 ──────────────────────────────────────────────────
+const _TAG_BLOCK = new Set([
+  '네이버','스마트스토어','쿠팡','11번가','지마켓','옥션','위메프','티몬',
+  '카카오','무신사','에이블리','지그재그','롯데온','ssg',
+  '나이키','아디다스','뉴발란스','구찌','샤넬','루이비통','노스페이스',
+  '삼성','lg','애플','nike','adidas','apple',
+  '상품','제품','용품','관련','모음','세트','할인','특가','무료','의류','패션',
+]);
+
+function _autoGenerateTags(p) {
+  const tags = [];
+  const seen = new Set();
+
+  function tryAdd(word) {
+    if (!word) return;
+    const w = word.trim();
+    if (w.length < 2 || w.length > 20) return;
+    if (_TAG_BLOCK.has(w.toLowerCase())) return;
+    if (seen.has(w.toLowerCase())) return;
+    seen.add(w.toLowerCase());
+    tags.push(w);
+  }
+
+  // 1) 상품명에서 한글 2자+ 토큰
+  const nameTokens = (p.name || '').match(/[가-힣]{2,}/g) || [];
+  nameTokens.forEach(t => tryAdd(t));
+
+  // 2) 상품명에서 영문+숫자 혼합 2자+
+  const enTokens = (p.name || '').match(/[a-zA-Z][a-zA-Z0-9]{1,}/g) || [];
+  enTokens.forEach(t => tryAdd(t));
+
+  // 3) 카테고리 마지막 뎁스
+  const cats = (p.category || '').split(/[>\/]/).map(s => s.trim()).filter(s => s.length >= 2);
+  cats.slice(-2).forEach(c => tryAdd(c));
+
+  return tags.slice(0, 10);
+}
+
+function _renderTagChips(tags) {
+  const container = document.getElementById('searchTagChips');
+  if (!container) return;
+  const maxLen20 = tags.filter(t => t.length <= 20);
+  const over = tags.length - maxLen20.length;
+  container.innerHTML = maxLen20.map((t, i) => {
+    const blocked = _TAG_BLOCK.has(t.toLowerCase());
+    return `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:12px;
+      background:${blocked ? '#5a1a1a' : '#1e3a5f'};color:${blocked ? '#ff6b6b' : '#7eb8ff'};border:1px solid ${blocked ? '#ff4444' : '#4a80b0'}">
+      ${blocked ? '⚠ ' : ''}${t}
+      <span onclick="this.parentElement.remove();_syncTagInput()" style="cursor:pointer;opacity:0.7;font-size:10px;">✕</span>
+    </span>`;
+  }).join('') + (over > 0 ? `<span style="font-size:11px;color:#f90;">+${over}개 초과 (10개 이하로 줄이세요)</span>` : '');
+}
+
+function _syncTagInput() {
+  // 칩 삭제 후 input 값 동기화는 단순히 칩 목록에서 재구성하기 어려우므로
+  // 삭제 시 input value에서도 제거하는 방향으로: chip 텍스트 파싱
+  const chips = [...document.querySelectorAll('#searchTagChips span[style]')];
+  const remaining = chips.map(el => el.textContent.replace('⚠ ','').replace('✕','').trim()).filter(Boolean);
+  const tagEl = document.getElementById('fSearchTags');
+  if (tagEl) tagEl.value = remaining.join(', ');
+}
+
+function _suggestKeywords(p) {
+  const parts = [];
+  // 카테고리에서 추출
+  (p.category || '').split(/[>\/]/).forEach(s => {
+    s = s.trim();
+    if (s.length >= 2) parts.push(s);
+  });
+  // 상품명에서 명사 추출 (2글자 이상 한글 단어)
+  const nameWords = (p.name || '').match(/[가-힣]{2,6}/g) || [];
+  nameWords.forEach(w => {
+    if (!['상품', '이상', '포함', '구성', '세트', '기본', '신상', '할인'].includes(w)) parts.push(w);
+  });
+  // 브랜드
+  if (p.brand && p.brand.length >= 2) parts.push(p.brand);
+  // 중복 제거
+  return [...new Set(parts)].slice(0, 8).join(', ');
+}
+
+function populateForm(p) {
+  document.getElementById('fName').value = p.name || '';
+  document.getElementById('fSupplyPrice').value = p.price || '';
+  /* 판매가는 공급가와 동일 숫자로 두면 ‘입력 판매가=공급가’로 오인되어 순마진 경고가 꼬임 → 비워 두고 calcPricePreview가 추천가를 채움 */
+  document.getElementById('fSellPrice').value = '';
+
+  // 키워드 자동 채움 (비어있을 때만)
+  const kwEl = document.getElementById('fKeywords');
+  if (kwEl && !kwEl.value) {
+    const autoKw = _suggestKeywords(p);
+    if (autoKw) kwEl.value = autoKw;
+  }
+
+  // 검색 태그 자동 생성 (비어있을 때만)
+  try {
+    const tagEl = document.getElementById('fSearchTags');
+    if (tagEl && !tagEl.value.trim()) {
+      const autoTags = _autoGenerateTags(p);
+      tagEl.value = autoTags.join(', ');
+      _renderTagChips(autoTags);
+    }
+    if (tagEl && !tagEl._tagListenerAdded) {
+      tagEl._tagListenerAdded = true;
+      tagEl.addEventListener('input', () => {
+        const tags = tagEl.value.split(',').map(t => t.trim()).filter(Boolean);
+        _renderTagChips(tags);
+      });
+    }
+  } catch (e) {
+    console.warn('[태그 자동생성 오류]', e);
+  }
+
+  // 상품명 추천 3개
+  const suggestions = _suggestNames(p);
+  const suggestList = document.getElementById('nameSuggestList');
+  if (suggestList) {
+    if (suggestions.length) {
+      suggestList.innerHTML = suggestions.map((s, i) =>
+        `<div class="name-suggest-item" onclick="document.getElementById('fName').value=this.dataset.name" data-name="${s.replace(/"/g,'&quot;')}">
+          <span class="name-suggest-label">추천${i+1}</span>${s}
+        </div>`
+      ).join('');
+      suggestList.style.display = 'flex';
+    } else {
+      suggestList.style.display = 'none';
+    }
+  }
+
+  // 원산지 자동 선택 (GraphQL 스냅샷 origin 문자열 최우선)
+  const originEl = document.getElementById('fOriginCountry');
+  if (originEl) {
+    const ocgO = (p.oc_detail && p.oc_detail.oc_graphql_item) || {};
+    const origin = String(
+      ocgO.origin || p.origin_country || (p.oc_detail && (p.oc_detail.origin_country || p.oc_detail.origin)) || ''
+    ).trim();
+    const matched = Array.from(originEl.options).find((o) => {
+      if (!o.value) return false;
+      if (origin.includes(o.value)) return true;
+      const parts = origin.split(/[|,\/]/).map((s) => s.trim()).filter(Boolean);
+      return parts.some((p2) => p2 === o.value || p2.includes(o.value));
+    });
+    originEl.value = matched ? matched.value : '';
+  }
+
+  const ocItemKey = (p.oc_detail && (p.oc_detail.key || p.oc_detail.itemKey)) ? String(p.oc_detail.key || p.oc_detail.itemKey).trim() : '';
+  editorSourceProductId = String(p.source_product_id || ocItemKey || '').trim();
+
+  // OC 상품코드 카드
+  const ocCode = editorSourceProductId || '';
+  const ocCard = document.getElementById('ocCodeCard');
+  if (ocCode && ocCard) {
+    document.getElementById('ocCodeDisplay').textContent = ocCode;
+    const link = document.getElementById('ocCodeLink');
+    // 오너클랜 웹 상품편은 쿼리 키가 selfcode (sellcode 아님)
+    link.href = `https://www.ownerclan.com/V2/product/view.php?selfcode=${encodeURIComponent(ocCode)}`;
+    ocCard.style.display = 'flex';
+  }
+
+  // 배송비: 금액>0 이면 무조건 유료 우선 (is_free_shipping 플래그 오염 방지)
+  const shippingFeeEl = document.getElementById('fShippingFee');
+  const shippingPolicyEl = document.getElementById('fShippingPolicy');
+  const ocg = (p.oc_detail && p.oc_detail.oc_graphql_item) || {};
+  let feeFromApi = null;
+  if (ocg.shippingFee != null && ocg.shippingFee !== '') feeFromApi = parseInt(ocg.shippingFee, 10);
+  const _rawFee = p.oc_detail && (p.oc_detail.shipping_fee != null || p.oc_detail.shippingFee != null)
+    ? (p.oc_detail.shipping_fee != null ? p.oc_detail.shipping_fee : p.oc_detail.shippingFee)
+    : null;
+  const ocShipFee = (feeFromApi != null && !isNaN(feeFromApi))
+    ? (feeFromApi || 0)
+    : (_rawFee != null ? (parseInt(_rawFee, 10) || 0) : (parseInt(p.shipping_fee, 10) || 0));
+  if (shippingFeeEl && shippingPolicyEl) {
+    if (ocShipFee > 0 || (p.shipping_fee && parseInt(p.shipping_fee, 10) > 0)) {
+      const f = ocShipFee > 0 ? ocShipFee : parseInt(p.shipping_fee, 10) || 0;
+      shippingPolicyEl.value = 'paid';
+      shippingFeeEl.value = String(f);
+    } else if (p.is_free_shipping) {
+      shippingPolicyEl.value = 'free';
+      shippingFeeEl.value = '0';
+    }
+  }
+
+  // 스마트스토어 카테고리: OC metadata.smartstoreCategoryCode → API가 내려주는 smartstore_category_code
+  const catCodeEl = document.getElementById('fCategoryCode');
+  const catPathEl = document.getElementById('fCategoryPath');
+  if (catCodeEl) {
+    const fromApi = String(p.smartstore_category_code || '').trim();
+    if (fromApi && !String(catCodeEl.value || '').trim()) {
+      catCodeEl.value = fromApi;
+    }
+  }
+  if (catPathEl && !String(catPathEl.value || '').trim()) {
+    const cf = (p.oc_detail && p.oc_detail.category_full) ? String(p.oc_detail.category_full).trim() : '';
+    if (cf) catPathEl.value = cf;
+  }
+
+  // 옵션 (option_group_name 기준으로 그룹핑)
+  const groupMap = {};
+  (p.options || []).forEach(opt => {
+    const gName = opt.name || '';
+    if (!groupMap[gName]) {
+      groupMap[gName] = addOptionGroup();
+      groupMap[gName].querySelector('.og-name').value = gName;
+      // 자동 생성된 빈 값 행 제거
+      groupMap[gName].querySelector('.option-values-list').innerHTML = '';
+    }
+    addOptionValue(groupMap[gName], opt.value || '');
+  });
+}
+
+/* ─── 마켓 계정 로드 ──────────────────────────────── */
+// { platform_type → [account, ...] }
+const _marketAccounts = {};
+/** id → 계정 행 (delivery_settings.customer_service_phone 등) */
+window._marketAccountById = window._marketAccountById || {};
+
+// 지원 마켓 정의 (추후 확장 가능)
+const MARKET_DEFS = [
+  { type: 'smartstore', label: '스마트스토어' },
+  { type: 'coupang',    label: '쿠팡' },
+  { type: 'tossshopping', label: '토스쇼핑' },
+];
+
+async function loadMarketAccounts() {
+  try {
+    const res = await API.platforms.list();
+    const all = (res.items || res.accounts || []);
+    window._marketAccountById = {};
+    all.forEach(a => { if (a && a.id) window._marketAccountById[a.id] = a; });
+
+    // 마켓별로 분류
+    MARKET_DEFS.forEach(({ type }) => {
+      _marketAccounts[type] = all.filter(
+        a => a.id && (a.platform_type || '').toLowerCase() === type
+      );
+    });
+
+    // 체크박스 목록 렌더링
+    const list = document.getElementById('marketCheckList');
+    list.innerHTML = '';
+    MARKET_DEFS.forEach(({ type, label }) => {
+      const accounts = _marketAccounts[type] || [];
+      if (!accounts.length) return; // 계정 없으면 숨김
+
+      accounts.forEach(acc => {
+        const item = document.createElement('label');
+        item.className = 'market-check-item';
+        item.dataset.market = type;
+        item.innerHTML = `
+          <input type="checkbox" class="market-check" data-type="${type}" data-id="${acc.id}" data-account-id="${acc.id}" checked>
+          <span class="mci-platform">${label}</span>
+          <span class="mci-account">${acc.account_name || ''}</span>
+        `;
+        list.appendChild(item);
+      });
+    });
+
+    if (!list.children.length) {
+      list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">등록된 마켓 계정이 없습니다. 설정 > 플랫폼 계정에서 추가하세요.</div>';
+    }
+  } catch (err) {
+    console.error('[loadMarketAccounts]', err);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   이미지
+═══════════════════════════════════════════════════════ */
+function renderDetailImages(urls) {
+  detailImages = urls;
+  document.getElementById('imageCountBadge').textContent = urls.length;
+
+  const list = document.getElementById('previewListFull');
+  const empty = document.getElementById('previewEmptyState');
+  const strip = document.getElementById('detailStrip');
+  list.innerHTML = '';
+  strip.innerHTML = '';
+
+  if (!urls.length) {
+    strip.innerHTML = '<span class="detail-empty">이미지 없음</span>';
+    empty.style.display = 'flex';
+    selectedImgUrl = '';
+    showMainPreview('');
+    return;
+  }
+  empty.style.display = 'none';
+
+  urls.forEach((url, i) => {
+    const img = document.createElement('img');
+    img.src = url;
+    img.className = 'preview-full-img';
+    img.alt = `상세 이미지 ${i + 1}`;
+    img.addEventListener('click', () => selectPreviewImage(i));
+    list.appendChild(img);
+  });
+
+  urls.forEach((url, i) => {
+    const img = document.createElement('img');
+    img.src = url;
+    img.className = 'detail-thumb';
+    img.title = `이미지 ${i + 1} — 대표 편집에 쓸 이미지로 선택`;
+    img.addEventListener('click', () => selectPreviewImage(i));
+    strip.appendChild(img);
+  });
+
+  selectPreviewImage(0);
+}
+
+function selectPreviewImage(index) {
+  if (!detailImages.length) return;
+  const i = Math.max(0, Math.min(index, detailImages.length - 1));
+  const url = detailImages[i];
+  selectedImgUrl = url;
+
+  document.querySelectorAll('.preview-full-img').forEach((el, idx) => {
+    el.classList.toggle('selected-full', idx === i);
+  });
+  document.querySelectorAll('.detail-thumb').forEach((el, idx) => {
+    el.classList.toggle('selected', idx === i);
+  });
+
+  const row = document.querySelectorAll('.preview-full-img')[i];
+  if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  showMainPreview(url);
+}
+
+/** blob URL revoke 시 브라우저가 img에 error를 내는데, 예전 showMainPreview의 onerror(클로저)가
+ *  상세이미지 URL 기준으로 복구·플레이스홀더 처리 → 썸네일이 잠깐 보였다 사라지는 현상 방지 */
+function _detachMainPreviewImgHandlers() {
+  const img = document.getElementById('mainPreviewImg');
+  if (!img) return;
+  img.onload = null;
+  img.onerror = null;
+}
+
+function showMainPreview(url) {
+  const img = document.getElementById('mainPreviewImg');
+  const ph = document.getElementById('mainPlaceholder');
+  if (!img || !ph) return;
+  _detachMainPreviewImgHandlers();
+  if (!url) {
+    if (_mainPreviewBlobUrl) {
+      try { URL.revokeObjectURL(_mainPreviewBlobUrl); } catch (_) {}
+      _mainPreviewBlobUrl = null;
+    }
+    img.style.display = 'none';
+    try { img.removeAttribute('src'); } catch (_) {}
+    ph.style.display = 'flex';
+    return;
+  }
+  let u = String(url).trim();
+  if (_mainPreviewBlobUrl && !u.startsWith('blob:')) {
+    try { URL.revokeObjectURL(_mainPreviewBlobUrl); } catch (_) {}
+    _mainPreviewBlobUrl = null;
+  }
+  if (u.startsWith('//')) u = location.protocol + u;
+  if (u && !/^https?:\/\//i.test(u) && !u.startsWith('data:') && !u.startsWith('blob:')) {
+    u = u.startsWith('/') ? (location.origin + u) : (location.origin + '/' + u);
+  }
+  try {
+    const parsed = new URL(u, location.href);
+    if (parsed.origin === location.origin) {
+      img.removeAttribute('referrerPolicy');
+    } else {
+      img.referrerPolicy = 'no-referrer';
+    }
+  } catch (_) {
+    img.referrerPolicy = 'no-referrer';
+  }
+  img.decoding = 'async';
+  img.onload = function () {
+    img.style.display = 'block';
+    ph.style.display = 'none';
+  };
+  img.onerror = function () {
+    const bare = String(u).split('?')[0];
+    if (bare && bare !== u) {
+      img.src = bare;
+      return;
+    }
+    img.style.display = 'none';
+    ph.style.display = 'flex';
+  };
+  img.src = u;
+  /* 캐시 히트·동일 URL 재설정 시 onload가 안 뜨는 경우 → 즉시 표시 */
+  if (img.complete && img.naturalWidth > 0) {
+    img.style.display = 'block';
+    ph.style.display = 'none';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   크롭 UI — 왼쪽 미리보기 칸에 직접 표시 (#cropInlinePanel)
+═══════════════════════════════════════════════════════ */
+/** 외부 CDN 이미지는 CORS로 canvas에 못 그리므로, 공개 프록시(동일 출처) URL로 변환 */
+function urlForCanvasCrop(url) {
+  if (!url) return '';
+  const u = String(url).trim();
+  if (!u) return '';
+  if (u.startsWith('data:') || u.startsWith('blob:')) return u;
+  try {
+    const normalized = u.startsWith('//') ? ('https:' + u) : u;
+    const abs = normalized.startsWith('http')
+      ? normalized
+      : (normalized.startsWith('/') ? (location.origin + normalized) : (location.origin + '/' + normalized));
+    const parsed = new URL(abs);
+    if (parsed.origin === location.origin) {
+      return u.startsWith('http') ? u : (u.startsWith('/') ? u : '/' + u);
+    }
+    return `/api/products/proxy-image?url=${encodeURIComponent(abs)}`;
+  } catch (_) {
+    return u;
+  }
+}
+
+function loadImageForCrop(src) {
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error('로드 실패'));
+    im.src = src;
+  });
+}
+
+/**
+ * 왼쪽 상세 미리보기에 쓰인 URL 전부를 세로로 이어 붙인 캔버스(도장) — 여기서 잘라 대표이미지로 씀.
+ * @param {(i:number,total:number)=>void} [onProgress] i는 1부터
+ */
+async function buildDetailCompositeCanvas(urls, onProgress) {
+  const list = (urls || []).map((u) => String(u).trim()).filter(Boolean).map(urlForCanvasCrop);
+  if (!list.length) throw new Error('이미지 URL이 없습니다');
+
+  const MAX_TOTAL_H = 20000;
+  const MAX_W = 1100;
+  const MIN_W = 480;
+
+  const images = [];
+  let failCount = 0;
+  for (let i = 0; i < list.length; i++) {
+    if (typeof onProgress === 'function') onProgress(i + 1, list.length);
+    try {
+      images.push(await loadImageForCrop(list[i]));
+    } catch (_) {
+      failCount += 1;
+    }
+  }
+  if (!images.length) {
+    throw new Error('상세 이미지를 한 장도 불러오지 못했습니다. 네트워크·프록시를 확인하세요.');
+  }
+  if (failCount > 0) {
+    console.warn(`[buildDetailCompositeCanvas] ${failCount}장 로드 실패, 나머지 ${images.length}장만 합성`);
+  }
+
+  let targetW = Math.min(MAX_W, Math.max(MIN_W, Math.max(...images.map((im) => im.naturalWidth || im.width))));
+
+  function layout(tw) {
+    const rows = images.map((im) => {
+      const nw = im.naturalWidth || im.width;
+      const nh = im.naturalHeight || im.height;
+      const sc = tw / nw;
+      const h = Math.max(1, Math.round(nh * sc));
+      return { im, tw, h };
+    });
+    const totalH = rows.reduce((a, r) => a + r.h, 0);
+    return { rows, totalH, tw };
+  }
+
+  let { rows, totalH, tw } = layout(targetW);
+  while (totalH > MAX_TOTAL_H && targetW > MIN_W) {
+    targetW -= 100;
+    ({ rows, totalH, tw } = layout(targetW));
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = tw;
+  canvas.height = totalH;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, tw, totalH);
+  let y = 0;
+  for (const r of rows) {
+    ctx.drawImage(r.im, 0, y, r.tw, r.h);
+    y += r.h;
+  }
+  return canvas;
+}
+
+function _layoutCropModalCanvas(source, opts) {
+  const o = opts || {};
+  const pr = typeof o.previewScrollRatio === 'number'
+    ? Math.min(1, Math.max(0, o.previewScrollRatio))
+    : null;
+
+  cropImg = source;
+  const vp = document.getElementById('cropFullViewport');
+  const canvas = document.getElementById('cropFullCanvas');
+  const base = document.getElementById('cropBaseCanvas');
+  if (!vp || !canvas || !base) return;
+
+  const iw = source.width || source.naturalWidth;
+  const ih = source.height || source.naturalHeight;
+
+  canvas.width = iw;
+  canvas.height = ih;
+  base.width = iw;
+  base.height = ih;
+
+  const maxW = Math.max(360, vp.clientWidth - 12);
+  const cssW = Math.min(maxW, iw);
+  const cssH = (ih * cssW) / iw;
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  base.style.width = cssW + 'px';
+  base.style.height = cssH + 'px';
+
+  const bctx = base.getContext('2d');
+  bctx.fillStyle = '#ffffff';
+  bctx.fillRect(0, 0, iw, ih);
+  bctx.drawImage(cropImg, 0, 0, iw, ih);
+
+  crop.imgDrawX = 0;
+  crop.imgDrawY = 0;
+  crop.imgDrawW = iw;
+  crop.imgDrawH = ih;
+
+  const mb = Math.max(40, Math.floor(0.06 * Math.min(iw, ih)));
+  crop.minBox = Math.min(mb, Math.floor(Math.min(iw, ih) / 2));
+
+  /* 기본 박스 없음 — 사용자가 첫 드래그로만 정사각형 지정(전체 화면 덮는 박스로 인한 이동만 되는 문제 방지) */
+  crop.selectionReady = false;
+  crop.x = 0;
+  crop.y = 0;
+  crop.size = 0;
+
+  crop.active = true;
+  crop.rubberband = false;
+  drawCrop();
+  unbindCropEvents(canvas);
+  bindCropEvents(canvas);
+
+  /* 미리보기 세로 스크롤 위치만 맞춤(선택 사각형은 사용자 드래그 후에만 생김) */
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const sh = Math.max(1, vp.scrollHeight);
+      const vph = Math.max(1, vp.clientHeight);
+      const maxSt = Math.max(0, sh - vph);
+
+      if (pr != null) {
+        vp.scrollTop = pr * maxSt;
+      } else if (maxSt > 0) {
+        vp.scrollTop = maxSt * 0.5;
+      }
+      drawCrop();
+    });
+  });
+}
+
+async function openDetailCropEditor() {
+  const urls = Array.isArray(detailImages) ? detailImages.slice() : [];
+  if (!urls.length) {
+    alert('상세 이미지가 없습니다. OC 새로고침으로 이미지를 먼저 불러오세요.');
+    return;
+  }
+
+  /* 편집 진입 전 미리보기 세로 스크롤 위치(0~1) — 합성 작업판에서 같은 구간부터 보기 */
+  const prevOuter = document.getElementById('previewScrollOuter');
+  let previewScrollRatio = 0;
+  if (prevOuter) {
+    const maxP = Math.max(0, prevOuter.scrollHeight - prevOuter.clientHeight);
+    previewScrollRatio = maxP > 0 ? prevOuter.scrollTop / maxP : 0;
+  }
+
+  const panel = document.getElementById('cropInlinePanel');
+  const outer = document.getElementById('previewScrollOuter');
+  const left = document.getElementById('editorLeft');
+  const list = document.getElementById('previewListFull');
+  const empty = document.getElementById('previewEmptyState');
+  const detailSec = document.querySelector('.detail-images-section');
+  const sourceBar = document.getElementById('sourceInfoBar');
+  const head = document.getElementById('cropFullHead');
+  const headHtml = head ? head.innerHTML : '';
+
+  if (list) list.style.display = 'none';
+  if (empty) empty.style.display = 'none';
+  if (detailSec) detailSec.style.display = 'none';
+  if (sourceBar) sourceBar.style.display = 'none';
+
+  if (outer) outer.classList.add('crop-active');
+  if (left) left.classList.add('crop-active');
+  if (panel) {
+    panel.classList.add('open');
+    panel.setAttribute('aria-hidden', 'false');
+  }
+
+  const brOpen = document.getElementById('btnSaveMainCropRight');
+  const beOpen = document.getElementById('btnEditMainImage');
+  if (brOpen) {
+    brOpen.style.display = 'inline-flex';
+    brOpen.disabled = false;
+  }
+  if (beOpen) beOpen.style.display = 'none';
+
+  if (head) {
+    head.innerHTML = `왼쪽 미리보기와 같은 이미지 <b>${urls.length}장</b>를 이어 붙이는 중입니다…`;
+  }
+
+  try {
+    const composite = await buildDetailCompositeCanvas(urls, (cur, tot) => {
+      if (head) head.innerHTML = `이미지 <b>${tot}장</b> 중 <b>${cur}/${tot}</b> 불러오는 중…`;
+    });
+    if (head) head.innerHTML = headHtml;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        _layoutCropModalCanvas(composite, { previewScrollRatio });
+      });
+    });
+  } catch (e) {
+    alert('상세 이미지를 합치지 못했습니다. ' + (e.message || e));
+    if (head) head.innerHTML = headHtml;
+    exitCropMode();
+  }
+}
+
+function exitCropMode() {
+  crop.active = false;
+  crop.rubberband = false;
+  crop.selectionReady = false;
+  document.removeEventListener('mousemove', _cropDocMove);
+  document.removeEventListener('mouseup', _cropDocUp);
+  const canvas = document.getElementById('cropFullCanvas');
+  if (canvas) unbindCropEvents(canvas);
+
+  _detachMainPreviewImgHandlers();
+  if (_mainPreviewBlobUrl) {
+    try { URL.revokeObjectURL(_mainPreviewBlobUrl); } catch (_) {}
+    _mainPreviewBlobUrl = null;
+  }
+
+  const br = document.getElementById('btnSaveMainCropRight');
+  const be = document.getElementById('btnEditMainImage');
+  if (br) br.style.display = 'none';
+  if (be) be.style.display = '';
+
+  const panel = document.getElementById('cropInlinePanel');
+  const outer = document.getElementById('previewScrollOuter');
+  const left = document.getElementById('editorLeft');
+  const list = document.getElementById('previewListFull');
+  const empty = document.getElementById('previewEmptyState');
+  const detailSec = document.querySelector('.detail-images-section');
+  const sourceBar = document.getElementById('sourceInfoBar');
+
+  if (panel) {
+    panel.classList.remove('open');
+    panel.setAttribute('aria-hidden', 'true');
+  }
+  if (outer) outer.classList.remove('crop-active');
+  if (left) left.classList.remove('crop-active');
+
+  if (list) list.style.display = detailImages.length ? 'block' : 'none';
+  if (empty) empty.style.display = detailImages.length ? 'none' : 'flex';
+  if (detailSec) detailSec.style.display = '';
+  if (sourceBar) sourceBar.style.display = '';
+
+  if (uploadedMainImageUrl) {
+    const raw = String(uploadedMainImageUrl).trim();
+    const abs = raw.startsWith('http') ? raw : (location.origin + (raw.startsWith('/') ? raw : '/' + raw));
+    showMainPreview(abs + (abs.includes('?') ? '&' : '?') + '_=' + Date.now());
+  } else if (selectedImgUrl) {
+    showMainPreview(selectedImgUrl);
+  } else {
+    showMainPreview('');
+  }
+}
+
+/* ─── 크롭 오버레이만 매 프레임 (배경은 #cropBaseCanvas 1회) — 드래그 지연 방지 ─── */
+let _cropDrawRaf = null;
+function scheduleDrawCrop() {
+  if (_cropDrawRaf != null) return;
+  _cropDrawRaf = requestAnimationFrame(() => {
+    _cropDrawRaf = null;
+    drawCrop();
+  });
+}
+
+function drawCrop() {
+  if (!crop.active || !cropImg) return;
+  const overlay = document.getElementById('cropFullCanvas');
+  if (!overlay) return;
+  const octx = overlay.getContext('2d');
+  const w = overlay.width;
+  const h = overlay.height;
+
+  if (crop.rubberband) {
+    octx.clearRect(0, 0, w, h);
+    octx.fillStyle = 'rgba(0,0,0,0.55)';
+    octx.fillRect(0, 0, w, h);
+    const pr = _squareFromRubber(crop.rbAx, crop.rbAy, crop.rbBx, crop.rbBy);
+    octx.globalCompositeOperation = 'destination-out';
+    octx.fillRect(pr.x, pr.y, pr.size, pr.size);
+    octx.globalCompositeOperation = 'source-over';
+    octx.strokeStyle = '#ffd166';
+    octx.lineWidth = 2;
+    octx.setLineDash([6, 4]);
+    octx.strokeRect(pr.x, pr.y, pr.size, pr.size);
+    octx.setLineDash([]);
+    const scale = cropImg.width / crop.imgDrawW;
+    const sx = (pr.x - crop.imgDrawX) * scale;
+    const sy = (pr.y - crop.imgDrawY) * scale;
+    const ss = pr.size * scale;
+    updateCropPreview(sx, sy, ss);
+    return;
+  }
+
+  if (!crop.selectionReady) {
+    octx.clearRect(0, 0, w, h);
+    const pv = document.getElementById('cropPreviewCanvas');
+    if (pv) pv.getContext('2d').clearRect(0, 0, 100, 100);
+    return;
+  }
+
+  const { x, y, size, imgDrawX, imgDrawY, imgDrawW, imgDrawH } = crop;
+
+  octx.clearRect(0, 0, w, h);
+  octx.fillStyle = 'rgba(0,0,0,0.55)';
+  octx.fillRect(0, 0, w, h);
+  octx.globalCompositeOperation = 'destination-out';
+  octx.fillRect(x, y, size, size);
+  octx.globalCompositeOperation = 'source-over';
+
+  const scaleX = cropImg.width / imgDrawW;
+  const srcX = (x - imgDrawX) * scaleX;
+  const srcY = (y - imgDrawY) * scaleX;
+  const srcSize = size * scaleX;
+
+  octx.strokeStyle = '#5BC5F2';
+  octx.lineWidth = 2;
+  octx.strokeRect(x, y, size, size);
+
+  octx.strokeStyle = 'rgba(91,197,242,0.35)';
+  octx.lineWidth = 1;
+  for (let i = 1; i <= 2; i++) {
+    const gx = x + size * i / 3;
+    const gy = y + size * i / 3;
+    octx.beginPath(); octx.moveTo(gx, y); octx.lineTo(gx, y + size); octx.stroke();
+    octx.beginPath(); octx.moveTo(x, gy); octx.lineTo(x + size, gy); octx.stroke();
+  }
+
+  const hs = 10;
+  octx.fillStyle = '#5BC5F2';
+  octx.fillRect(x - hs / 2, y - hs / 2, hs, hs);
+  octx.fillRect(x + size - hs / 2, y - hs / 2, hs, hs);
+  octx.fillRect(x - hs / 2, y + size - hs / 2, hs, hs);
+  octx.fillRect(x + size - hs / 2, y + size - hs / 2, hs, hs);
+
+  updateCropPreview(srcX, srcY, srcSize);
+}
+
+function updateCropPreview(srcX, srcY, srcSize) {
+  const preview = document.getElementById('cropPreviewCanvas');
+  const pCtx = preview.getContext('2d');
+  pCtx.clearRect(0, 0, 100, 100);
+  if (cropImg && srcSize > 0) {
+    pCtx.drawImage(cropImg, srcX, srcY, srcSize, srcSize, 0, 0, 100, 100);
+  }
+}
+
+/* ─── 크롭 마우스 이벤트 ───────────────────────────── */
+const _cropHandlers = {};
+
+function bindCropEvents(canvas) {
+  _cropHandlers.down = (e) => onCropMouseDown(e, canvas);
+  _cropHandlers.move = (e) => onCropMouseMove(e, canvas);
+  _cropHandlers.up   = () => onCropMouseUp();
+  canvas.addEventListener('mousedown', _cropHandlers.down);
+  canvas.addEventListener('mousemove', _cropHandlers.move);
+  window.addEventListener('mouseup',   _cropHandlers.up);
+}
+
+function unbindCropEvents(canvas) {
+  canvas.removeEventListener('mousedown', _cropHandlers.down);
+  canvas.removeEventListener('mousemove', _cropHandlers.move);
+  window.removeEventListener('mouseup',   _cropHandlers.up);
+}
+
+function getCanvasPos(e, canvas) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top)  * scaleY,
+  };
+}
+
+function hitTestHandle(mx, my) {
+  if (!crop.selectionReady || !crop.size) return null;
+  const { x, y, size } = crop;
+  const hs = 14; // 히트 영역
+  const corners = {
+    tl: [x, y], tr: [x + size, y],
+    bl: [x, y + size], br: [x + size, y + size],
+  };
+  for (const [id, [cx, cy]] of Object.entries(corners)) {
+    if (Math.abs(mx - cx) < hs && Math.abs(my - cy) < hs) return id;
+  }
+  return null;
+}
+
+function onCropMouseDown(e, canvas) {
+  const { x: mx, y: my } = getCanvasPos(e, canvas);
+  /* 영역 미지정: 이미지 위 아무 데서나 드래그 = 새 정사각형(스니핑) */
+  if (!crop.selectionReady && _pointInImageDraw(mx, my)) {
+    crop.rubberband = true;
+    crop.rbAx = crop.rbBx = mx;
+    crop.rbAy = crop.rbBy = my;
+    document.addEventListener('mousemove', _cropDocMove);
+    document.addEventListener('mouseup', _cropDocUp);
+    drawCrop();
+    e.preventDefault();
+    return;
+  }
+  const handle = hitTestHandle(mx, my);
+  if (handle) {
+    crop.resizing = handle;
+  } else if (mx >= crop.x && mx <= crop.x + crop.size && my >= crop.y && my <= crop.y + crop.size) {
+    crop.dragging = true;
+  } else if (_pointInImageDraw(mx, my)) {
+    crop.rubberband = true;
+    crop.rbAx = crop.rbBx = mx;
+    crop.rbAy = crop.rbBy = my;
+    document.addEventListener('mousemove', _cropDocMove);
+    document.addEventListener('mouseup', _cropDocUp);
+    drawCrop();
+    e.preventDefault();
+    return;
+  } else {
+    return;
+  }
+  crop.startMouseX = mx;
+  crop.startMouseY = my;
+  crop.startCropX = crop.x;
+  crop.startCropY = crop.y;
+  crop.startCropSize = crop.size;
+  e.preventDefault();
+}
+
+function onCropMouseMove(e, canvas) {
+  if (crop.rubberband) return;
+  const { x: mx, y: my } = getCanvasPos(e, canvas);
+
+  if (!crop.dragging && !crop.resizing) {
+    if (!crop.selectionReady) {
+      canvas.style.cursor = _pointInImageDraw(mx, my) ? 'crosshair' : 'default';
+      return;
+    }
+    const handle = hitTestHandle(mx, my);
+    if (handle) {
+      canvas.style.cursor = handle === 'tl' || handle === 'br' ? 'nwse-resize' : 'nesw-resize';
+    } else if (mx >= crop.x && mx <= crop.x + crop.size && my >= crop.y && my <= crop.y + crop.size) {
+      canvas.style.cursor = 'move';
+    } else {
+      canvas.style.cursor = 'crosshair';
+    }
+    return;
+  }
+
+  const dx = mx - crop.startMouseX;
+  const dy = my - crop.startMouseY;
+  const { imgDrawX, imgDrawY, imgDrawW, imgDrawH } = crop;
+
+  if (crop.dragging) {
+    crop.x = Math.max(imgDrawX, Math.min(crop.startCropX + dx, imgDrawX + imgDrawW - crop.size));
+    crop.y = Math.max(imgDrawY, Math.min(crop.startCropY + dy, imgDrawY + imgDrawH - crop.size));
+  }
+
+  if (crop.resizing) {
+    const minSize = crop.minBox || CROP_MIN;
+    let newSize = crop.startCropSize;
+    let newX = crop.startCropX;
+    let newY = crop.startCropY;
+
+    const delta = Math.abs(dx) > Math.abs(dy) ? dx : dy;
+
+    if (crop.resizing === 'br') {
+      newSize = Math.max(minSize, crop.startCropSize + delta);
+    } else if (crop.resizing === 'tl') {
+      newSize = Math.max(minSize, crop.startCropSize - delta);
+      newX = crop.startCropX + crop.startCropSize - newSize;
+      newY = crop.startCropY + crop.startCropSize - newSize;
+    } else if (crop.resizing === 'tr') {
+      newSize = Math.max(minSize, crop.startCropSize + delta);
+      newY = crop.startCropY + crop.startCropSize - newSize;
+    } else if (crop.resizing === 'bl') {
+      newSize = Math.max(minSize, crop.startCropSize - delta);
+      newX = crop.startCropX + crop.startCropSize - newSize;
+    }
+
+    // 이미지 범위 내로 제한
+    newX = Math.max(imgDrawX, Math.min(newX, imgDrawX + imgDrawW - minSize));
+    newY = Math.max(imgDrawY, Math.min(newY, imgDrawY + imgDrawH - minSize));
+    newSize = Math.min(newSize, imgDrawX + imgDrawW - newX, imgDrawY + imgDrawH - newY);
+
+    crop.x = newX; crop.y = newY; crop.size = newSize;
+  }
+
+  scheduleDrawCrop();
+}
+
+function onCropMouseUp() {
+  crop.dragging = false;
+  crop.resizing = false;
+  drawCrop();
+}
+
+/* ─── 대표이미지 업로드 ────────────────────────────── */
+function _setCropSaveBusy(busy) {
+  ['saveCropBtn', 'btnSaveMainCropRight'].forEach((id) => {
+    const b = document.getElementById(id);
+    if (!b) return;
+    b.disabled = !!busy;
+    b.textContent = busy ? '업로드 중...' : '대표이미지 저장';
+  });
+}
+
+async function uploadCrop() {
+  if (!cropImg || !crop.active) { alert('크롭 영역이 없습니다.'); return; }
+  if (crop.rubberband) { alert('먼저 드래그를 끝내 정사각형 영역을 확정하세요.'); return; }
+  if (!crop.selectionReady || !crop.size) {
+    alert('작업판에서 먼저 드래그로 정사각형 영역을 지정하세요.');
+    return;
+  }
+
+  const scale = cropImg.width / crop.imgDrawW;
+  let srcX = (crop.x - crop.imgDrawX) * scale;
+  let srcY = (crop.y - crop.imgDrawY) * scale;
+  let srcSize = crop.size * scale;
+  srcSize = Math.max(1, Math.min(srcSize, cropImg.width - srcX, cropImg.height - srcY));
+  srcX = Math.max(0, Math.min(srcX, cropImg.width - srcSize));
+  srcY = Math.max(0, Math.min(srcY, cropImg.height - srcSize));
+
+  const out = document.createElement('canvas');
+  out.width = 1000;
+  out.height = 1000;
+  const octx = out.getContext('2d');
+  octx.drawImage(cropImg, srcX, srcY, srcSize, srcSize, 0, 0, 1000, 1000);
+
+  _setCropSaveBusy(true);
+
+  out.toBlob(async (blob) => {
+    if (!blob) {
+      _setCropSaveBusy(false);
+      return;
+    }
+
+    try {
+      _detachMainPreviewImgHandlers();
+      if (_mainPreviewBlobUrl) {
+        try { URL.revokeObjectURL(_mainPreviewBlobUrl); } catch (_) {}
+        _mainPreviewBlobUrl = null;
+      }
+      _mainPreviewBlobUrl = URL.createObjectURL(blob);
+      const mp = document.getElementById('mainPreviewImg');
+      const mph = document.getElementById('mainPlaceholder');
+      if (mp && mph) {
+        mp.removeAttribute('referrerPolicy');
+        mp.onload = function () {
+          mp.style.display = 'block';
+          mph.style.display = 'none';
+        };
+        mp.onerror = function () {
+          mph.style.display = 'flex';
+          mp.style.display = 'none';
+        };
+        mp.src = _mainPreviewBlobUrl;
+        if (mp.complete && mp.naturalWidth > 0) {
+          mp.style.display = 'block';
+          mph.style.display = 'none';
+        }
+      }
+    } catch (_) {}
+
+    const formData = new FormData();
+    const safe = String(editorSourceProductId || '').replace(/[^A-Za-z0-9_\-]/g, '').slice(0, 40);
+    formData.append('file', blob, `${safe || 'main'}.jpg`);
+    if (editorSourceProductId) {
+      formData.append('product_code', editorSourceProductId);
+    }
+
+    try {
+      const res = await fetch('/api/products/upload-image', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getAccessToken()}` },
+        body: formData,
+      });
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      let data = {};
+      if (ct.includes('application/json')) {
+        try {
+          data = await res.json();
+        } catch {
+          throw new Error(`서버 응답을 읽을 수 없습니다 (HTTP ${res.status})`);
+        }
+      } else {
+        const t = await res.text();
+        throw new Error((t && t.trim().slice(0, 200)) || `HTTP ${res.status}`);
+      }
+      if (!res.ok) {
+        const msg = data.detail || data.error;
+        throw new Error(
+          typeof msg === 'string' && msg.trim()
+            ? msg
+            : (msg ? JSON.stringify(msg) : `업로드 실패 (HTTP ${res.status})`)
+        );
+      }
+
+      const relU = String(data.url || '').trim();
+      const absU = String(data.absolute_url || '').trim();
+      uploadedMainImageUrl = absU || (relU.startsWith('http') ? relU : (location.origin + (relU.startsWith('/') ? relU : '/' + relU)));
+
+      const display = document.getElementById('mainImageUrlDisplay');
+      display.style.display = 'block';
+      const cdnU = String(data.cdn_url || '').trim();
+      const line2 = cdnU
+        ? `<br><span style="font-size:11px;color:var(--text-muted)">CDN형(고정 패턴): <a href="${cdnU}" target="_blank" rel="noopener">${cdnU}</a></span>`
+        : '';
+      display.innerHTML = `✓ 대표이미지(절대주소): <a href="${uploadedMainImageUrl}" target="_blank" rel="noopener">${uploadedMainImageUrl}</a>${line2}`;
+
+      exitCropMode();
+    } catch (err) {
+      alert('업로드 실패: ' + err.message);
+      _detachMainPreviewImgHandlers();
+      if (_mainPreviewBlobUrl) {
+        try { URL.revokeObjectURL(_mainPreviewBlobUrl); } catch (_) {}
+        _mainPreviewBlobUrl = null;
+      }
+      if (selectedImgUrl) showMainPreview(selectedImgUrl);
+      else if (uploadedMainImageUrl) {
+        const raw = String(uploadedMainImageUrl).trim();
+        const abs = raw.startsWith('http') ? raw : (location.origin + (raw.startsWith('/') ? raw : '/' + raw));
+        showMainPreview(abs);
+      } else {
+        showMainPreview('');
+      }
+    }
+
+    _setCropSaveBusy(false);
+  }, 'image/jpeg', 0.92);
+}
+
+/* ═══════════════════════════════════════════════════════
+   옵션 그룹
+═══════════════════════════════════════════════════════ */
+function addOptionGroup() {
+  const container = document.getElementById('optionGroupsContainer');
+  document.getElementById('noOptionsMsg').style.display = 'none';
+
+  const id = ++optionGroupCount;
+  const div = document.createElement('div');
+  div.className = 'option-group-item';
+  div.dataset.groupId = id;
+  div.innerHTML = `
+    <div class="option-group-header">
+      <input class="form-input og-name" type="text" placeholder="옵션명 (예: 색상)">
+      <button class="btn btn-danger btn-xs" onclick="removeOptionGroup(${id})">삭제</button>
+    </div>
+    <div class="option-values-list" id="ogValues_${id}"></div>
+    <button class="btn btn-secondary btn-xs" style="margin-top:6px;"
+      onclick="addOptionValue(document.querySelector('[data-group-id=\\'${id}\\']'))">+ 값 추가</button>
+  `;
+  container.appendChild(div);
+  addOptionValue(div, '');
+  return div;
+}
+
+function addOptionValue(groupEl, defaultVal = '') {
+  const list = groupEl.querySelector('.option-values-list');
+  const row = document.createElement('div');
+  row.className = 'option-value-row';
+  row.innerHTML = `
+    <input class="form-input ov-name" type="text" placeholder="옵션 값 (예: 블랙)" value="${defaultVal}">
+    <input class="form-input ov-price" type="number" placeholder="추가금액" style="max-width:100px;">
+    <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
+  `;
+  list.appendChild(row);
+}
+
+function removeOptionGroup(id) {
+  document.querySelector(`[data-group-id="${id}"]`).remove();
+  if (!document.getElementById('optionGroupsContainer').children.length) {
+    document.getElementById('noOptionsMsg').style.display = '';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   기본값 저장/적용
+═══════════════════════════════════════════════════════ */
+const DEFAULTS_KEY = 'channelp_editor_defaults';
+
+function saveDefaults() {
+  const defaults = {
+    shippingPolicy: document.getElementById('fShippingPolicy').value,
+    shippingFee: document.getElementById('fShippingFee').value,
+  };
+  localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults));
+  alert('배송 기본값이 저장되었습니다.');
+}
+
+function applyDefaults() {
+  const raw = localStorage.getItem(DEFAULTS_KEY);
+  if (!raw) return;
+  try {
+    const d = JSON.parse(raw);
+    const fields = { fShippingPolicy: 'shippingPolicy', fShippingFee: 'shippingFee' };
+    Object.entries(fields).forEach(([elemId, key]) => {
+      if (d[key] !== undefined) document.getElementById(elemId).value = d[key];
+    });
+  } catch (_) { /* 무시 */ }
+}
+
+/* ═══════════════════════════════════════════════════════
+   드래프트 저장
+═══════════════════════════════════════════════════════ */
+async function saveDraft() {
+  const wholesaleId = new URLSearchParams(location.search).get('wholesale_id');
+  if (!wholesaleId) {
+    setStatus('wholesale_id 없음 — URL 파라미터를 확인하세요.', 'err');
+    return;
+  }
+
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { setStatus('상품명을 입력하세요.', 'err'); return; }
+
+  // 옵션 수집
+  const options = [];
+  document.querySelectorAll('.option-group-item').forEach(g => {
+    const groupName = g.querySelector('.og-name').value.trim();
+    const values = [];
+    g.querySelectorAll('.option-value-row').forEach(row => {
+      const val = row.querySelector('.ov-name').value.trim();
+      const price = parseInt(row.querySelector('.ov-price').value || '0') || 0;
+      if (val) values.push({ value: val, extra_price: price });
+    });
+    if (groupName) options.push({ name: groupName, values });
+  });
+
+  const keywords = document.getElementById('fKeywords').value
+    .split(',').map(k => k.trim()).filter(Boolean);
+  const searchTags = (document.getElementById('fSearchTags')?.value || '')
+    .split(',').map(t => t.trim()).filter(t => t && t.length <= 20).slice(0, 10);
+
+  const body = {
+    wholesale_product_id: parseInt(wholesaleId),
+    edited_product_name: name,
+    target_sell_price: parseInt(document.getElementById('fSellPrice').value || '0'),
+    target_market: document.getElementById('fTargetMarket').value || 'smartstore',
+    market_account_id: null,
+    edited_keywords: keywords,
+    search_tags: searchTags,
+    edited_options: options,
+    main_image_url: uploadedMainImageUrl || (detailImages.length > 0 ? (typeof detailImages[0] === 'string' ? detailImages[0] : (detailImages[0]?.image_url || detailImages[0]?.url || null)) : null) || null,
+  };
+
+  setStatus('저장 중...', '');
+  try {
+    const res = await API.products.editorV2CreateDraft(body);
+    const el = document.getElementById('saveStatus');
+    if (res.margin_warning_ko) {
+      el.className = 'warn-sw';
+      el.innerHTML =
+        `<span class="sw-ok">✓ 저장 완료 (draft_id: ${escapeHtml(String(res.draft_id))})</span>` +
+        `<span>⚠ ${escapeHtml(res.margin_warning_ko)}</span>`;
+    } else {
+      el.innerHTML = '';
+      setStatus(`✓ 저장 완료 (draft_id: ${res.draft_id})`, 'ok');
+    }
+  } catch (e) {
+    const el = document.getElementById('saveStatus');
+    el.innerHTML = '';
+    setStatus('저장 실패: ' + (e.message || e), 'err');
+  }
+}
+
+async function calcPricePreview() {
+  const supplyPrice = parseInt(document.getElementById('fSupplyPrice').value || '0');
+  const resultEl = document.getElementById('priceCalcResult');
+  const applyBtn = document.getElementById('applyCalcPriceBtn');
+
+  if (!supplyPrice || supplyPrice < 100) {
+    resultEl.innerHTML = '공급가 입력 후 자동 계산';
+    applyBtn.style.display = 'none';
+    return;
+  }
+
+  resultEl.innerHTML = '계산 중…';
+  try {
+    const listedRaw = parseInt(document.getElementById('fSellPrice').value || '0', 10) || 0;
+    /* 공급가와 같은 숫자는 초기 로드 복제값일 수 있어 ‘입력 판매가’ 검사에서 제외 */
+    const probeListed = listedRaw > 0 && listedRaw !== supplyPrice;
+    const r = await API.products.calcPrice(supplyPrice, 'smartstore', probeListed ? listedRaw : null);
+    const sp = r.sell_price?.toLocaleString();
+    const marginPct = r.actual_margin_rate;
+    const minPct = r.min_guaranteed_margin_percent;
+    const marginCls = (marginPct >= minPct) ? 'calc-margin-ok' : 'calc-margin-low';
+    const floorWon = r.sell_price != null ? Number(r.sell_price).toLocaleString() : '—';
+    let listedHint = '';
+    if (r.listed_sell_price && r.listed_meets_min_margin === false) {
+      listedHint =
+        `<br><span class="calc-margin-low" style="font-size:12px;">⚠ 입력 판매가 <b>${Number(r.listed_sell_price).toLocaleString()}원</b> 기준 순마진 <b>${r.listed_actual_margin_rate}%</b>. ` +
+        `설정 ‘최소 순마진 ${minPct}%’에 맞추려는 참고 방어선(추천가와 동일)은 보통 <b>${floorWon}원</b> 전후입니다. <b>등록은 막지 않으며</b> 참고만 하세요.</span>`;
+    } else if (r.listed_sell_price && r.listed_meets_min_margin === true) {
+      listedHint =
+        `<br><span style="font-size:12px;color:var(--text-muted);">입력 판매가 ${Number(r.listed_sell_price).toLocaleString()}원 기준 순마진 ${r.listed_actual_margin_rate}% (설정 최소 ${minPct}% 기준 충족)</span>`;
+    }
+    resultEl.innerHTML =
+      `추천 판매가 <b>${sp}원</b> &nbsp;|&nbsp; ` +
+      `순마진(추천가) <span class="${marginCls}">${marginPct?.toFixed(1)}%</span> &nbsp;|&nbsp; ` +
+      `수수료 ${r.platform_fee_rate?.toFixed(1)}%` + listedHint;
+    // 판매가 자동 적용 (비어있거나 공급가와 같을 때)
+    const sellEl = document.getElementById('fSellPrice');
+    const currentSell = parseInt(sellEl.value || '0');
+    if (!currentSell || currentSell === supplyPrice) {
+      sellEl.value = r.sell_price;
+    }
+    applyBtn.dataset.price = r.sell_price;
+    applyBtn.style.display = '';
+  } catch (e) {
+    resultEl.innerHTML = `<span style="color:var(--text-muted)">가격 계산 실패 (설정 > 가격 자동계산 확인)</span>`;
+    applyBtn.style.display = 'none';
+  }
+}
+
+function setStatus(msg, cls) {
+  const el = document.getElementById('saveStatus');
+  el.textContent = msg;
+  el.className = cls || '';
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/* ═══════════════════════════════════════════════════════
+   스마트스토어 등록
+═══════════════════════════════════════════════════════ */
+function showSsApiResult(res) {
+  const pre = document.getElementById('ssApiResultPanel');
+  pre.style.display = 'block';
+  pre.className = res.ok ? 'ok' : 'err';
+
+  if (res.ok) {
+    const ch = res.json?.channel_product_no;
+    const mw = res.json?.margin_warning_ko;
+    const lines = ['✅ 등록 완료'];
+    if (ch) lines.push(`채널상품번호: ${ch}`);
+    if (mw) lines.push(`⚠ ${mw}`);
+    lines.push(res.json?.hint_ko || '판매자센터에서 상품·승인 상태를 확인하세요.');
+    pre.textContent = lines.join('\n');
+  } else {
+    const detail = res.json?.detail || res.json?.error?.message || res.text || `HTTP ${res.status}`;
+    pre.textContent = `❌ 등록 실패 (${res.status})\n${typeof detail === 'string' ? detail : JSON.stringify(detail, null, 2)}`;
+  }
+}
+
+async function registerMarkets() {
+  const wholesaleId = new URLSearchParams(location.search).get('wholesale_id');
+  if (!wholesaleId) { alert('wholesale_id 없음'); return; }
+
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { setStatus('상품명을 입력하세요.', 'err'); return; }
+
+  const categoryCode = document.getElementById('fCategoryCode').value.trim();
+  if (!categoryCode) {
+    const go = confirm(
+      '카테고리 코드가 없습니다.\n' +
+      'OC metadata에 스마트스토어 카테고리 코드가 없는 상품입니다.\n\n' +
+      '직접 카테고리 코드를 입력하거나, 취소 후 상품을 다시 로드해 보세요.\n\n' +
+      '그래도 계속 진행하면 서버에서 카테고리 키워드 매핑을 시도합니다. 진행할까요?'
+    );
+    if (!go) {
+      document.getElementById('fCategoryCode').focus();
+      return;
+    }
+  }
+
+  let sellPrice = parseInt(document.getElementById('fSellPrice').value || '0');
+  if (!sellPrice) {
+    alert('판매가를 입력하세요.');
+    document.getElementById('fSellPrice').focus();
+    return;
+  }
+
+  // 판매가가 공급가와 같으면 가격 자동계산이 아직 적용되지 않은 상태 — 재시도
+  const _supplyForCheck = parseInt(document.getElementById('fSupplyPrice').value || '0');
+  if (_supplyForCheck > 0 && sellPrice === _supplyForCheck) {
+    await calcPricePreview();
+    const _recalcSell = parseInt(document.getElementById('fSellPrice').value || '0');
+    if (_recalcSell > 0 && _recalcSell !== _supplyForCheck) {
+      sellPrice = _recalcSell;
+    } else if (_recalcSell === _supplyForCheck) {
+      const go = confirm('판매가가 공급가와 동일합니다. 마진이 부족할 수 있습니다. 그래도 계속 진행하시겠습니까?');
+      if (!go) return;
+    }
+  }
+
+  // 체크된 항목 수집
+  const checked = [...document.querySelectorAll('.market-check:checked')].map(el => ({
+    type: el.dataset.type,
+    id: parseInt(el.dataset.id),
+    label: el.closest('.market-check-item').querySelector('.mci-platform').textContent +
+           ' ' + el.closest('.market-check-item').querySelector('.mci-account').textContent.trim(),
+  }));
+
+  if (!checked.length) { alert('등록할 마켓을 하나 이상 선택하세요.'); return; }
+
+  const keywords = document.getElementById('fKeywords').value
+    .split(',').map(k => k.trim()).filter(Boolean);
+  const searchTags = (document.getElementById('fSearchTags')?.value || '')
+    .split(',').map(t => t.trim()).filter(t => t && t.length <= 20).slice(0, 10);
+
+  const options = [];
+  document.querySelectorAll('.option-group-item').forEach(g => {
+    const groupName = g.querySelector('.og-name').value.trim();
+    const values = [];
+    g.querySelectorAll('.option-value-row').forEach(row => {
+      const val = row.querySelector('.ov-name').value.trim();
+      const price = parseInt(row.querySelector('.ov-price').value || '0') || 0;
+      if (val) values.push({ value: val, extra_price: price });
+    });
+    if (groupName) options.push({ name: groupName, values });
+  });
+
+  const btn = document.getElementById('registerBtn');
+  btn.disabled = true;
+  const pre = document.getElementById('ssApiResultPanel');
+  pre.style.display = 'block';
+  pre.className = '';
+  setStatus('', '');
+
+  let successCount = 0;
+  const resultLines = [];
+
+  for (const target of checked) {
+    btn.textContent = `등록 중… (${target.label})`;
+    pre.textContent = resultLines.join('\n') + (resultLines.length ? '\n' : '') + `⏳ [${target.label}] 요청 중…`;
+
+    // 마켓별 등록 API 분기
+    try {
+      let res;
+      if (target.type === 'smartstore') {
+        const originCountry = (document.getElementById('fOriginCountry')?.value || '').trim();
+        const shippingPolicy = document.getElementById('fShippingPolicy')?.value || 'free';
+        const shippingFee = parseInt(document.getElementById('fShippingFee')?.value || '0') || 0;
+        const supplyPrice = parseInt(document.getElementById('fSupplyPrice')?.value || '0') || 0;
+        const body = {
+          wholesale_product_id: parseInt(wholesaleId),
+          supply_price: supplyPrice,  // OC API 실시간 공급가 (서버 DB 캐시보다 우선)
+          edited_product_name: name,
+          edited_keywords: keywords,
+          search_tags: searchTags,
+          edited_options: options,
+          // 크롭/업로드 이미지 우선, 없으면 OC에서 받아온 상세이미지 첫 번째 URL 사용
+          main_image_url: uploadedMainImageUrl || (detailImages.length > 0 ? (typeof detailImages[0] === 'string' ? detailImages[0] : (detailImages[0]?.image_url || detailImages[0]?.url || null)) : null) || null,
+          // OC 이미지 전체 목록 — DB에 없는 상품도 상세이미지 모두 등록
+          detail_images: detailImages.map(img => typeof img === 'string' ? img : (img?.image_url || img?.url || '')).filter(Boolean),
+          origin_country: originCountry || null,
+          shipping_policy: shippingPolicy,
+          shipping_fee: shippingFee,
+          seller_management_code: (typeof editorSourceProductId !== 'undefined' && editorSourceProductId)
+            ? String(editorSourceProductId).trim()
+            : '',
+          platform_data: {
+            smartstore: { category_code: categoryCode, sell_price: sellPrice, account_id: target.id },
+          },
+        };
+        res = await API.products.editorV2SmartstoreRegister(body);
+        if (res.ok) {
+          successCount++;
+          const ch = res.json?.channel_product_no;
+          const mw = res.json?.margin_warning_ko;
+          let okLine = `✅ [${target.label}] 등록 완료${ch ? ` (채널번호: ${ch})` : ''}`;
+          if (mw) okLine += `\n⚠ ${mw}`;
+          resultLines.push(okLine);
+        } else {
+          const detail = res.json?.detail || res.text || `HTTP ${res.status}`;
+          resultLines.push(`❌ [${target.label}] 실패: ${detail}`);
+        }
+      } else {
+        // 추후 쿠팡·토스쇼핑 등 연동 시 여기에 추가
+        resultLines.push(`⚠️ [${target.label}] 아직 지원하지 않는 마켓입니다.`);
+      }
+    } catch (e) {
+      resultLines.push(`❌ [${target.label}] 오류: ${e.message || e}`);
+    }
+    pre.textContent = resultLines.join('\n');
+  }
+
+  const ssChecked = checked.filter(t => t.type === 'smartstore');
+  if (successCount === ssChecked.length && ssChecked.length > 0) {
+    pre.className = 'ok';
+    setStatus(`✓ 등록 완료 (${successCount}개)`, 'ok');
+  } else if (successCount > 0) {
+    setStatus(`일부 등록 완료 (${successCount}/${checked.length})`, 'ok');
+  } else {
+    pre.className = 'err';
+    setStatus('등록 실패', 'err');
+  }
+
+  btn.disabled = false;
+  btn.textContent = '선택 마켓에 등록';
+}
+
+/* ─── 시작 ─────────────────────────────────────────── */
+boot();
+</script>
+</body>
+</html>

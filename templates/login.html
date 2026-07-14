@@ -1,0 +1,201 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChannelP - 로그인</title>
+<link rel="stylesheet" href="/assets/css/common.css">
+<style>
+  body { display:flex; align-items:center; justify-content:center; height:100vh; overflow:auto; }
+  .login-box { width:360px; }
+  .login-logo { text-align:center; margin-bottom:8px; }
+  .login-logo img { height:48px; width:auto; object-fit:contain; }
+  .login-logo-text { font-size:28px; font-weight:700; color:var(--accent-primary); text-align:center; letter-spacing:-1px; }
+  .login-sub { text-align:center; color:var(--text-secondary); font-size:var(--font-size-sm); margin-bottom:20px; }
+  .login-card { background:var(--bg-surface); border:1px solid var(--border-default); border-radius:var(--radius); padding:28px; }
+  .login-card h2 { font-size:15px; font-weight:600; margin:0 0 20px; color:var(--text-primary); }
+  .login-submit { width:100%; padding:11px; margin-top:4px; }
+  .login-error { color:var(--accent-danger); font-size:var(--font-size-sm); text-align:center; min-height:20px; margin-bottom:8px; }
+  .tab-pane { display:none; }
+  .tab-pane.active { display:block; }
+  #setup-panel { display:none; }
+  #auth-panel { display:none; }
+</style>
+</head>
+<body>
+<div class="login-box">
+  <div class="login-logo">
+    <img src="/assets/img/logo.png" alt="ChannelP" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+    <span class="login-logo-text" style="display:none">ChannelP</span>
+  </div>
+  <div class="login-sub">위탁판매 자동화 플랫폼</div>
+
+  <!-- 첫 실행: 관리자 계정 생성 -->
+  <div id="setup-panel" class="login-card">
+    <h2>🚀 처음 사용하시나요? 관리자 계정을 만들어 주세요.</h2>
+    <form id="setup-form">
+      <div class="form-group">
+        <label for="setup-username">아이디</label>
+        <input type="text" id="setup-username" required placeholder="사용할 아이디" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label for="setup-password">비밀번호</label>
+        <input type="password" id="setup-password" required placeholder="비밀번호 (4자 이상)" autocomplete="new-password">
+      </div>
+      <div id="setup-error" class="login-error"></div>
+      <button type="submit" class="btn btn-primary login-submit">관리자 계정 만들기</button>
+    </form>
+  </div>
+
+  <!-- 이후 실행: 로그인만 -->
+  <div id="auth-panel" class="login-card">
+    <!-- 로그인 폼 -->
+    <form id="login-form">
+      <div class="form-group">
+        <label>아이디</label>
+        <input type="text" id="login-username" required autocomplete="username" placeholder="아이디 입력">
+      </div>
+      <div class="form-group">
+        <label>비밀번호</label>
+        <input type="password" id="login-password" required autocomplete="current-password" placeholder="비밀번호 입력">
+      </div>
+      <!-- 아이디만 localStorage / 로그인 유지는 서버 HttpOnly 쿠키(리프레시) -->
+      <div class="form-group" style="display:flex;align-items:flex-start;gap:8px;margin-top:-4px;margin-bottom:6px;">
+        <input type="checkbox" id="rememberId" style="width:16px;height:16px;cursor:pointer;margin-top:2px;flex-shrink:0;">
+        <label for="rememberId" style="font-size:13px;color:var(--text-secondary);cursor:pointer;margin:0;line-height:1.4;">
+          이 브라우저에서 아이디 기억
+        </label>
+      </div>
+      <div class="form-group" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">
+        <input type="checkbox" id="stayLoggedIn" style="width:16px;height:16px;cursor:pointer;margin-top:2px;flex-shrink:0;">
+        <label for="stayLoggedIn" style="font-size:13px;color:var(--text-secondary);cursor:pointer;margin:0;line-height:1.4;">
+          로그인 상태 유지 (브라우저를 껐다 켜도 이 기기에서 유지)<br>
+          <span style="font-size:12px;opacity:0.85;">비밀번호는 저장하지 않으며, 안전한 전용 쿠키로만 세션을 이어갑니다.</span>
+        </label>
+      </div>
+      <div id="login-error" class="login-error"></div>
+      <button type="submit" class="btn btn-primary login-submit">로그인</button>
+    </form>
+  </div>
+</div>
+
+<script>
+(async () => {
+  // ── ID 저장 기능 (localStorage, 이 브라우저에서만) ──────────────────────────
+  const SAVED_ID_KEY = 'channelp_saved_username';
+  const savedId = localStorage.getItem(SAVED_ID_KEY);
+  if (savedId) {
+    const idInput = document.getElementById('login-username');
+    if (idInput) {
+      idInput.value = savedId;
+      const rid = document.getElementById('rememberId');
+      if (rid) rid.checked = true;
+    }
+  }
+
+  // 초기 설정 체크
+  let needed = false;
+  try {
+    const r = await fetch('/api/setup/check');
+    const d = await r.json();
+    needed = !d.initialized;
+  } catch(e) { needed = false; }
+
+  if (needed) {
+    document.getElementById('setup-panel').style.display = 'block';
+  } else {
+    document.getElementById('auth-panel').style.display = 'block';
+    (async () => {
+      try {
+        const r = await fetch('/api/auth/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: '{}',
+        });
+        if (r.ok) {
+          const d = await r.json();
+          sessionStorage.setItem('at', d.access_token);
+          sessionStorage.setItem('rt', d.refresh_token);
+          window.location.href = '/';
+          return;
+        }
+      } catch (_) {}
+      if (savedId) {
+        setTimeout(() => document.getElementById('login-password')?.focus(), 100);
+      }
+    })();
+  }
+
+  // 초기 관리자 계정 생성
+  document.getElementById('setup-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('setup-error');
+    errEl.textContent = '';
+    const username = document.getElementById('setup-username').value.trim();
+    const password = document.getElementById('setup-password').value;
+    try {
+      const r = await fetch('/api/setup/init', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({username, password}),
+      });
+      const d = await r.json();
+      if (!r.ok) { errEl.textContent = d.detail || '오류'; return; }
+      await doLogin(username, password, errEl, false, false);
+    } catch(e) { errEl.textContent = '서버 연결 실패'; }
+  });
+
+  // 로그인
+  document.getElementById('login-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const rememberId = document.getElementById('rememberId')?.checked || false;
+    const stayLoggedIn = document.getElementById('stayLoggedIn')?.checked || false;
+    await doLogin(
+      document.getElementById('login-username').value.trim(),
+      document.getElementById('login-password').value,
+      document.getElementById('login-error'),
+      rememberId,
+      stayLoggedIn
+    );
+  });
+
+  async function doLogin(username, password, errEl, rememberId, stayLoggedIn) {
+    try {
+      const r = await fetch('/api/auth/login', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        credentials:'same-origin',
+        body: JSON.stringify({
+          username,
+          password,
+          remember_me: !!stayLoggedIn,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        if (errEl) errEl.textContent = d.detail || `로그인 실패 (${r.status})`;
+        return;
+      }
+
+      if (rememberId) {
+        localStorage.setItem(SAVED_ID_KEY, username);
+      } else {
+        localStorage.removeItem(SAVED_ID_KEY);
+      }
+
+      sessionStorage.setItem('at', d.access_token);
+      sessionStorage.setItem('rt', d.refresh_token);
+      const ut = d.user_type ?? d.user?.user_type ?? '';
+      const un = d.username ?? d.user?.username ?? username;
+      sessionStorage.setItem('user_type', ut);
+      sessionStorage.setItem('username', un);
+      window.location.href = '/';
+    } catch(e) {
+      if (errEl) errEl.textContent = '서버 연결 실패';
+    }
+  }
+})();
+</script>
+</body>
+</html>

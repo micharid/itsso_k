@@ -1,0 +1,9 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>대시보드 - ChannelP</title>
+<link rel="stylesheet" href="/assets/css/common.css"><link rel="stylesheet" href="/assets/css/layout.css"><link rel="stylesheet" href="/assets/css/components.css"></head>
+<body><div class="app-wrapper"><header class="app-header"><div class="header-left"><button class="sidebar-toggle-btn" id="sidebarToggle"><span></span><span></span><span></span></button><span class="header-logo">ChannelP</span></div><div class="header-right"><div class="header-user"><span id="headerUsername">-</span><button class="btn btn-sm btn-ghost" id="logoutBtn">로그아웃</button></div></div></header><nav class="app-sidebar" id="appSidebar"></nav><main class="app-main"><div class="page-header"><h1 class="page-title">대시보드</h1></div><div class="card"><div class="card-header"><span class="card-title">요약</span></div><div class="card-body"><pre id="out">불러오는 중...</pre></div></div></main></div>
+<script src="/assets/js/sidebar.js"></script><script src="/assets/js/common.js"></script><script src="/assets/js/api.js"></script><script src="/assets/js/auth.js"></script>
+<script>async function boot(){if(!getAccessToken()&&typeof refreshTokens==='function'){await refreshTokens();}if(!getAccessToken()){location.href='/login.html';return;}const me=await API.auth.me().catch(()=>null);if(!me){location.href='/login.html';return;}document.getElementById('headerUsername').textContent=me.username||me.user_id||'-';document.getElementById('logoutBtn').onclick=logout;const data=await API.dashboard.get().catch(e=>({error:e.message}));document.getElementById('out').textContent=JSON.stringify(data,null,2);}boot();</script>
+</body></html>

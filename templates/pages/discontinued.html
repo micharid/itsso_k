@@ -1,0 +1,315 @@
+{% load static %}
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>품절/단종 상품 — ChannelP</title>
+<link rel="stylesheet" href="/assets/css/common.css?v=20260409a">
+<link rel="stylesheet" href="/assets/css/layout.css?v=20260409a">
+<link rel="stylesheet" href="/assets/css/components.css?v=20260409a">
+<style>
+.auto-status-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  background: rgba(61,186,111,0.08);
+  border: 1px solid rgba(61,186,111,0.25);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+.auto-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-success); animation: pulse 2s infinite; flex-shrink: 0; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+.auto-status-text { color: var(--text-primary); font-weight: 600; }
+.auto-status-sub { color: var(--text-secondary); }
+.auto-status-time { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+
+.filter-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 14px; }
+.dc-thumb { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; background: var(--bg-elevated); vertical-align: middle; }
+.dc-thumb-placeholder { width: 40px; height: 40px; border-radius: 4px; background: var(--bg-elevated); display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 10px; vertical-align: middle; }
+
+.reason-badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+.reason-품절 { background: rgba(224,82,82,0.12); color: #e05252; }
+.reason-단종 { background: rgba(150,100,200,0.12); color: #9040c8; }
+.reason-판매중단 { background: rgba(240,168,64,0.12); color: #f0a840; }
+.reason-default { background: var(--bg-elevated); color: var(--text-muted); }
+
+.days-bar { display: inline-flex; align-items: center; gap: 4px; }
+.days-dot { width: 6px; height: 6px; border-radius: 50%; }
+.days-ok { background: var(--accent-success); }
+.days-warn { background: var(--accent-warning); }
+
+.empty-state { padding: 60px 20px; text-align: center; color: var(--text-muted); }
+.summary-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.chip { padding: 4px 12px; border-radius: 99px; font-size: 12px; border: 1px solid var(--border-default); cursor: pointer; background: var(--bg-surface); color: var(--text-secondary); }
+.chip.active { background: var(--accent-primary); color: #fff; border-color: var(--accent-primary); }
+</style>
+</head>
+<body>
+<div class="app-wrapper">
+
+  <header class="app-header">
+    <div class="header-left">
+      <button class="sidebar-toggle-btn" id="sidebarToggle"><span></span><span></span><span></span></button>
+      <span class="header-logo">ChannelP</span>
+    </div>
+    <div class="header-right">
+      <button class="icon-btn" id="notifBell">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="notif-badge" id="notifBadge" style="display:none">0</span>
+      </button>
+      <div class="header-user">
+        <span id="headerUsername">—</span>
+        <button class="btn btn-sm btn-ghost" id="logoutBtn">로그아웃</button>
+      </div>
+    </div>
+    <div class="notif-panel" id="notifPanel" style="display:none">
+      <div class="notif-panel-header"><span>알림</span><button class="btn btn-xs btn-ghost" id="markAllReadBtn">모두 읽음</button></div>
+      <ul class="notif-list" id="notifList"></ul>
+    </div>
+  </header>
+
+  <nav class="app-sidebar" id="appSidebar"></nav>
+
+  <main class="app-main">
+    <div class="page-header">
+      <div class="breadcrumb"><span>홈</span> / <span>품절/단종 상품</span></div>
+      <h1 class="page-title">품절/단종 상품</h1>
+    </div>
+
+    <!-- 자동화 상태 표시 -->
+    <div class="auto-status-bar">
+      <div class="auto-dot"></div>
+      <div>
+        <div class="auto-status-text">자동화 실행 중</div>
+        <div class="auto-status-sub">
+          <strong>5분마다 도는 「품절 자동 감지」</strong>는 쿠팡·스마트스토어 등에 <strong>올려 둔 내 상품과 도매 상품이 연결돼 있을 때만</strong> 오너클랜 재고를 봅니다. 아직 마켓에만 안 올렸거나 연결이 없으면 실행 이력에 「마켓 등록 상품 없음」이 뜨는 것이 정상입니다.
+          아래 표는 DB에 <strong>단종 처리 시각</strong>이 기록된 도매 상품이며, 매일 새벽 증분 동기화·키워드 쪽 재고 확인으로 갱신됩니다.
+        </div>
+      </div>
+      <div class="auto-status-time" id="lastCheckTime">마지막 확인: —</div>
+    </div>
+
+    <!-- 요약 칩 필터 -->
+    <div class="summary-chips">
+      <button class="chip active" data-reason="">전체</button>
+      <button class="chip" data-reason="품절">품절</button>
+      <button class="chip" data-reason="삭제">삭제</button>
+      <button class="chip" data-reason="중단">단종(중단)</button>
+    </div>
+
+    <!-- 필터 -->
+    <div class="card" style="padding:12px 16px;margin-bottom:14px">
+      <div class="filter-bar">
+        <div>
+          <label class="form-label">상품명 검색</label>
+          <input id="searchInput" class="form-input" type="text" placeholder="상품명으로 검색..." style="width:220px">
+        </div>
+        <div>
+          <label class="form-label">보존 기간</label>
+          <select id="retentionSelect" class="form-select" style="width:160px">
+            <option value="">전체</option>
+            <option value="1">1년 미만 (유예기간)</option>
+            <option value="2">1~2년 (보존기간)</option>
+          </select>
+        </div>
+        <button id="searchBtn" class="btn btn-primary">검색</button>
+        <button id="refreshBtn" class="btn btn-ghost">새로고침</button>
+        <span class="auto-status-sub" style="margin-left:auto;font-size:12px">※ 2년(730일) 경과 상품은 매일 새벽 자동 삭제됩니다.</span>
+      </div>
+    </div>
+
+    <!-- 테이블 -->
+    <div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px">
+        <span>품절/단종 목록 <span id="totalCountBadge" class="badge badge-info" style="margin-left:6px">—</span></span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="pageSizeSelect" class="form-select" style="width:90px">
+            <option value="30" selected>30개</option>
+            <option value="50">50개</option>
+            <option value="100">100개</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:52px">이미지</th>
+              <th>상품명</th>
+              <th>도매처</th>
+              <th>상품코드</th>
+              <th>공급가</th>
+              <th>사유</th>
+              <th>단종 일시</th>
+              <th>보존 잔여일</th>
+              <th>마켓 판매중지</th>
+            </tr>
+          </thead>
+          <tbody id="dcTbody">
+            <tr><td colspan="9" class="text-center text-muted" style="padding:40px">로딩 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- 페이지네이션 -->
+      <div id="paginationArea" style="display:flex;justify-content:center;align-items:center;gap:8px;padding:12px"></div>
+    </div>
+  </main>
+
+  <footer class="app-footer"><span>v0.1.0</span></footer>
+</div>
+
+<script src="/assets/js/sidebar.js?v=20260409a"></script>
+<script src="/assets/js/common.js?v=20260409a"></script>
+<script src="/assets/js/api.js?v=20260409a"></script>
+<script src="/assets/js/auth.js?v=20260409a"></script>
+<script src="/assets/js/theme.js?v=20260409a"></script>
+<script>
+let currentPage = 1;
+let currentReason = '';
+let currentSearch = '';
+let currentRetention = '';
+
+// HTTP 이미지를 HTTPS 프록시로 변환
+function proxyUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('http://')) return '/api/products/proxy-image?url=' + encodeURIComponent(url);
+  return url;
+}
+
+// 단종 사유 배지
+function reasonBadge(reason) {
+  const cls = ['품절','단종','판매중단'].includes(reason) ? `reason-${reason}` : 'reason-default';
+  return `<span class="reason-badge ${cls}">${escapeHtml(reason || '—')}</span>`;
+}
+
+// 보존 잔여일 표시
+function remainingDays(days) {
+  if (days == null) return '—';
+  const cls = Number(days) < 90 ? 'days-warn' : 'days-ok';
+  return `<div class="days-bar"><div class="days-dot ${cls}"></div><span>${Number(days).toLocaleString()}일 남음</span></div>`;
+}
+
+// 플랫폼 한글명
+function platformLabel(p) {
+  const map = { ownerclan: '오너클랜', domaemae: '도매매', domaeguk: '도매꾹' };
+  return map[p] || p || '—';
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  initCommonLayout();
+
+  // 자동화 마지막 실행 시각 조회
+  try {
+    const logData = await API.automation.logs({ page: 1, page_size: 40 });
+    const logs = logData.logs || [];
+    const last = logs.find(l => l.job_type === 'stock_check');
+    if (last?.executed_at) {
+      document.getElementById('lastCheckTime').textContent = '마지막 품절 잡 기록: ' + formatDateTime(last.executed_at);
+    }
+  } catch {}
+
+  // 이벤트 바인딩
+  document.getElementById('searchBtn').addEventListener('click', () => { currentPage = 1; loadData(); });
+  document.getElementById('refreshBtn').addEventListener('click', () => { currentPage = 1; loadData(); });
+  document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') { currentPage = 1; loadData(); } });
+  document.getElementById('pageSizeSelect').addEventListener('change', () => { currentPage = 1; loadData(); });
+  document.getElementById('retentionSelect').addEventListener('change', e => { currentRetention = e.target.value; currentPage = 1; loadData(); });
+
+  // 칩 필터
+  document.querySelectorAll('.chip[data-reason]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.chip[data-reason]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentReason = btn.dataset.reason;
+      currentPage = 1;
+      loadData();
+    });
+  });
+
+  await loadData();
+});
+
+async function loadData() {
+  const tbody = document.getElementById('dcTbody');
+  tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted" style="padding:40px">로딩 중...</td></tr>';
+  currentSearch = document.getElementById('searchInput').value.trim();
+
+  const pageSize = Number(document.getElementById('pageSizeSelect').value);
+  const params = new URLSearchParams({
+    page: currentPage,
+    page_size: pageSize,
+  });
+  if (currentReason) params.set('reason', currentReason);
+  if (currentSearch) params.set('search', currentSearch);
+  if (currentRetention) params.set('retention_phase', currentRetention);
+
+  try {
+    const data = await request('GET', `/products/discontinued?${params.toString()}`);
+    const items = data.items || data.products || [];
+    const total = data.total || 0;
+
+    document.getElementById('totalCountBadge').textContent = total.toLocaleString() + '건';
+
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><div style="font-size:32px;margin-bottom:8px">✅</div><div>품절/단종된 상품이 없습니다.</div><div style="font-size:12px;margin-top:4px">오너클랜에서 5분마다 자동으로 확인합니다.</div></td></tr>';
+      renderPagination(total, pageSize);
+      return;
+    }
+
+    tbody.innerHTML = items.map(row => {
+      const thumbSrc = proxyUrl(row.thumbnail_url || '');
+      const thumb = thumbSrc
+        ? `<img class="dc-thumb" src="${escapeHtml(thumbSrc)}" alt="" onerror="this.style.opacity='0.3'">`
+        : `<div class="dc-thumb-placeholder">없음</div>`;
+
+      const marketClosed = row.market_closed
+        ? `<span style="color:var(--accent-success);font-size:12px">● 판매중지 완료</span>`
+        : `<span style="color:var(--text-muted);font-size:12px">—</span>`;
+
+      const sourceUrl = row.source_url
+        ? `<a href="${escapeHtml(row.source_url)}" target="_blank" style="font-size:11px;color:var(--accent-primary)">↗</a>`
+        : '';
+
+      return `<tr>
+        <td>${thumb}</td>
+        <td style="max-width:240px">
+          <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(row.product_name || '—')}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${escapeHtml(row.brand_name || '')}${row.seller_name ? ' · ' + escapeHtml(row.seller_name) : ''}</div>
+        </td>
+        <td>${escapeHtml(platformLabel(row.source_platform))}</td>
+        <td style="font-size:12px;font-family:monospace">${escapeHtml(row.source_product_id || '—')} ${sourceUrl}</td>
+        <td>${row.supply_price ? formatPrice(row.supply_price) : '—'}</td>
+        <td>${reasonBadge(row.discontinue_reason)}</td>
+        <td style="font-size:12px;color:var(--text-secondary)">${formatDateTime(row.discontinued_at)}</td>
+        <td>${remainingDays(row.days_remaining)}</td>
+        <td>${marketClosed}</td>
+      </tr>`;
+    }).join('');
+
+    renderPagination(total, pageSize);
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center" style="padding:40px;color:var(--accent-danger)">조회 실패: ${escapeHtml(err.message || '')}</td></tr>`;
+    showToast('품절/단종 목록 조회 실패', 'error');
+  }
+}
+
+function renderPagination(total, pageSize) {
+  const area = document.getElementById('paginationArea');
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (totalPages <= 1) { area.innerHTML = ''; return; }
+
+  let html = '';
+  html += `<button class="btn btn-sm btn-ghost" ${currentPage <= 1 ? 'disabled' : ''} onclick="goPage(${currentPage - 1})">◀ 이전</button>`;
+  html += `<span style="font-size:13px;color:var(--text-secondary)">${currentPage} / ${totalPages}</span>`;
+  html += `<button class="btn btn-sm btn-ghost" ${currentPage >= totalPages ? 'disabled' : ''} onclick="goPage(${currentPage + 1})">다음 ▶</button>`;
+  area.innerHTML = html;
+}
+
+function goPage(page) {
+  currentPage = page;
+  loadData();
+}
+</script>
+</body>
+</html>

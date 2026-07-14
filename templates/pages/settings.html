@@ -1,0 +1,1201 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>설정 — ChannelP</title>
+<link rel="stylesheet" href="/assets/css/common.css?v=20260406d">
+<link rel="stylesheet" href="/assets/css/layout.css?v=20260407a">
+<link rel="stylesheet" href="/assets/css/components.css?v=20260406d">
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+</head>
+<body>
+<div class="app-wrapper">
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="header-left">
+      <button class="sidebar-toggle-btn" id="sidebarToggle"><span></span><span></span><span></span></button>
+      <span class="header-logo">ChannelP</span>
+    </div>
+    <div class="header-right">
+      <button class="icon-btn" id="notifBell">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="notif-badge" id="notifBadge" style="display:none">0</span>
+      </button>
+      <div class="header-user">
+        <span id="headerUsername">—</span>
+        <button class="btn btn-sm btn-ghost" id="logoutBtn">로그아웃</button>
+      </div>
+    </div>
+    <div class="notif-panel" id="notifPanel" style="display:none">
+      <div class="notif-panel-header"><span>알림</span><button class="btn btn-xs btn-ghost" id="markAllReadBtn">모두 읽음</button></div>
+      <ul class="notif-list" id="notifList"></ul>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <nav class="app-sidebar" id="appSidebar"></nav>
+
+  <!-- MAIN -->
+  <main class="app-main">
+    <div class="page-header">
+      <div class="breadcrumb"><span>홈</span> / <span>설정</span></div>
+      <h1 class="page-title">설정</h1>
+    </div>
+
+    <!-- 탭 -->
+    <div class="tabs tab-strip" id="settingsTabs">
+      <button class="tab active" data-tab="general">기본 설정</button>
+      <button class="tab" data-tab="platforms">플랫폼 계정</button>
+      <button class="tab" data-tab="delivery">배송 정보</button>
+      <button class="tab" data-tab="dbconn">DB 연결</button>
+      <button class="tab" data-tab="notifications">알림</button>
+      <button class="tab" data-tab="ui">UI 설정</button>
+      <button class="tab" data-tab="security">보안</button>
+      <button class="tab" data-tab="pricing">가격 설정</button>
+      <button class="tab" data-tab="backup">백업/복원</button>
+    </div>
+
+    <!-- ===== 일반 탭 ===== -->
+    <div class="tab-panel active" id="panel-general">
+      <div class="settings-section">
+        <h2 class="settings-section-title">시스템 정보</h2>
+        <div class="settings-group">
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>시스템 버전</span>
+              <small>현재 설치된 버전</small>
+            </div>
+            <div class="settings-value">
+              <span class="badge badge-info">v0.1.0</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>자동화 상태</span>
+              <small>자동화 엔진 동작 여부</small>
+            </div>
+            <div class="settings-value" id="automationStatusValue">—</div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>마지막 크롤링</span>
+              <small>가장 최근 수집 시각</small>
+            </div>
+            <div class="settings-value" id="lastCrawlValue">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="settings-section-title">일반 설정</h2>
+        <div class="settings-form">
+          <div class="form-group">
+            <label class="form-label">앱 이름</label>
+            <input type="text" class="form-input" id="siteName" placeholder="ChannelP" style="max-width:300px">
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex:1">
+              <label class="form-label">시간대</label>
+              <select class="form-select" id="timezone" style="max-width:240px">
+                <option value="Asia/Seoul">Asia/Seoul (KST)</option>
+                <option value="UTC">UTC</option>
+                <option value="America/New_York">America/New_York</option>
+                <option value="Asia/Tokyo">Asia/Tokyo</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:1">
+              <label class="form-label">언어</label>
+              <select class="form-select" id="language" style="max-width:160px">
+                <option value="ko">한국어</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">자동 크롤링 주기 (분)</label>
+            <input type="number" class="form-input" id="crawlIntervalMinutes" min="10" max="1440" value="60" style="max-width:120px">
+            <small class="form-hint">최소 10분, 기본 60분. 변경은 서버 재시작 후 적용됩니다.</small>
+          </div>
+          <div class="settings-actions">
+            <button class="btn btn-primary" id="saveGeneralBtn">기본 설정 저장</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 배송 설정 현황 카드 -->
+      <div class="settings-section">
+        <h2 class="settings-section-title">배송 정보 현황</h2>
+        <div style="background:var(--bg-elevated);border:1px solid var(--border-default);border-radius:var(--radius);padding:14px;font-size:13px;">
+          <div style="color:var(--text-secondary);margin-bottom:10px">
+            배송 정보(출고지, 반품지, 택배사, 배송비 등)는 <strong>판매 마켓 계정별로</strong> 설정합니다.<br>
+            아래에서 각 마켓 계정의 배송 설정 완료 여부를 확인하세요. 발주 시 이 정보가 자동으로 사용됩니다.
+          </div>
+          <div id="deliveryStatusSummary" style="display:flex;flex-direction:column;gap:8px">
+            <div style="color:var(--text-muted);font-size:12px">로딩 중...</div>
+          </div>
+          <div style="margin-top:10px">
+            <button class="btn btn-sm btn-ghost" onclick="document.querySelector('[data-tab=platforms]').click()">
+              → 플랫폼 계정 탭에서 배송 설정 수정하기
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 플랫폼 계정 탭 ===== -->
+    <div class="tab-panel" id="panel-platforms" style="display:none">
+      <div class="settings-section">
+        <div class="section-header-row">
+          <h2 class="settings-section-title">도매처 계정</h2>
+          <button class="btn btn-primary btn-sm" id="addWholesaleBtn">+ 도매처 추가</button>
+        </div>
+        <div class="account-list" id="wholesaleList">
+          <div class="empty-placeholder">등록된 도매처 계정이 없습니다.</div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="section-header-row">
+          <h2 class="settings-section-title">판매 마켓 계정</h2>
+          <button class="btn btn-primary btn-sm" id="addMarketBtn">+ 마켓 추가</button>
+        </div>
+        <div class="account-list" id="marketList">
+          <div class="empty-placeholder">등록된 판매 마켓 계정이 없습니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 배송 정보 탭 ===== -->
+    <div class="tab-panel" id="panel-delivery" style="display:none">
+      <div class="settings-section">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+          <div>
+            <h2 class="settings-section-title" style="margin-bottom:4px">마켓 계정별 배송 정보</h2>
+            <p style="color:var(--text-secondary);font-size:13px;margin:0">
+              발주 시 이 정보가 자동으로 사용됩니다. 각 계정 탭을 눌러 배송 정보를 입력하세요.
+            </p>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);padding-top:4px" id="deliveryApiNotice">
+            ℹ️ 스마트스토어·쿠팡·토스쇼핑은 배송지 자동 불러오기 API를 공개하지 않아 직접 입력이 필요합니다.
+          </div>
+        </div>
+
+        <!-- 계정별 탭 메뉴 -->
+        <div id="deliveryTabMenu" style="display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid var(--border-default);margin-bottom:16px;padding-bottom:0">
+          <div style="color:var(--text-muted);font-size:13px;padding:8px 0">불러오는 중...</div>
+        </div>
+
+        <!-- 계정별 탭 패널 -->
+        <div id="deliveryTabPanels"></div>
+      </div>
+    </div>
+
+    <!-- ===== DB 연결 탭 ===== -->
+    <div class="tab-panel" id="panel-dbconn" style="display:none">
+      <div class="settings-section">
+        <h2 class="settings-section-title">서버 DB 연결</h2>
+        <div class="settings-form">
+          <div class="form-row">
+            <div class="form-group" style="flex:3">
+              <label class="form-label">호스트 <span class="required">*</span></label>
+              <input type="text" class="form-input" id="dbHost" placeholder="localhost" autocomplete="off">
+            </div>
+            <div class="form-group" style="flex:1">
+              <label class="form-label">포트 <span class="required">*</span></label>
+              <input type="number" class="form-input" id="dbPort" value="3306" min="1" max="65535">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">데이터베이스명 <span class="required">*</span></label>
+            <input type="text" class="form-input" id="dbName" placeholder="channelp" autocomplete="off">
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex:1">
+              <label class="form-label">사용자 ID <span class="required">*</span></label>
+              <input type="text" class="form-input" id="dbUser" placeholder="DB 사용자명" autocomplete="username">
+            </div>
+            <div class="form-group" style="flex:1">
+              <label class="form-label">비밀번호 <span class="required">*</span></label>
+              <input type="password" class="form-input" id="dbPassword" placeholder="••••••••" autocomplete="current-password">
+            </div>
+          </div>
+          <div class="settings-actions">
+            <button class="btn btn-secondary" id="testDbBtn">연결 테스트</button>
+            <button class="btn btn-primary" id="saveDbBtn">저장</button>
+          </div>
+          <div id="dbTestResult" style="margin-top:8px;font-size:var(--font-size-sm)"></div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="settings-section-title">연결 상태</h2>
+        <div class="settings-group">
+          <div class="settings-row">
+            <div class="settings-label"><span>현재 연결 상태</span></div>
+            <div class="settings-value" id="dbConnStatus">—</div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label"><span>마지막 확인 시각</span></div>
+            <div class="settings-value" id="dbConnLastCheck">—</div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label"><span>활성 DB명</span></div>
+            <div class="settings-value" id="dbConnActiveName">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 알림 탭 ===== -->
+    <div class="tab-panel" id="panel-notifications" style="display:none">
+      <div class="settings-section">
+        <h2 class="settings-section-title">알림 수신 설정</h2>
+        <div class="settings-group">
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>발주 실패 알림</span>
+              <small>자동 발주 실패 시 즉시 알림</small>
+            </div>
+            <div class="settings-value">
+              <label class="toggle-switch">
+                <input type="checkbox" id="notifOrderAlert" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>품절 알림</span>
+              <small>도매처 품절 감지 시 처리 결과 알림</small>
+            </div>
+            <div class="settings-value">
+              <label class="toggle-switch">
+                <input type="checkbox" id="notifStockAlert" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>가격 변동 알림</span>
+              <small>도매처 가격 5% 이상 변동 시 알림</small>
+            </div>
+            <div class="settings-value">
+              <label class="toggle-switch">
+                <input type="checkbox" id="notifPriceAlert" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>API 오류 알림</span>
+              <small>플랫폼 API 연속 3회 실패 시 알림</small>
+            </div>
+            <div class="settings-value">
+              <label class="toggle-switch">
+                <input type="checkbox" id="notifApiError" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>시스템 알림</span>
+              <small>DB 최적화 결과, 시스템 오류</small>
+            </div>
+            <div class="settings-value">
+              <label class="toggle-switch">
+                <input type="checkbox" id="notifSystem" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>구독 만료 알림</span>
+              <small>만료 7일/1일 전, 당일 알림</small>
+            </div>
+            <div class="settings-value">
+              <label class="toggle-switch">
+                <input type="checkbox" id="notifSubscription" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="settings-section" style="border-top:1px solid var(--border-default);padding-top:16px;margin-top:0">
+          <h3 class="settings-section-title" style="font-size:var(--font-size-base)">이메일 알림</h3>
+          <div class="settings-group">
+            <div class="settings-row">
+              <div class="settings-label">
+                <span>이메일 알림 사용</span>
+                <small>알림을 이메일로 수신합니다</small>
+              </div>
+              <div class="settings-value">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="notifEmailEnabled">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+            <div class="settings-row">
+              <div class="settings-label">
+                <span>수신 이메일 주소</span>
+              </div>
+              <div class="settings-value">
+                <input type="email" class="form-input" id="notifEmailAddress" placeholder="example@email.com" style="max-width:280px">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="settings-actions">
+          <button class="btn btn-primary" id="saveNotifBtn">알림 설정 저장</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="settings-section-title">최근 알림 <span class="badge badge-info" id="unreadCount">0</span></h2>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>유형</th>
+                <th>제목</th>
+                <th>메시지</th>
+                <th>시각</th>
+                <th>상태</th>
+              </tr>
+            </thead>
+            <tbody id="notifHistoryTbody">
+              <tr><td colspan="5" class="text-center text-muted">로딩 중...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="settings-actions" style="margin-top:12px">
+          <button class="btn btn-ghost" id="markAllReadBtn2">모두 읽음 처리</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== UI 설정 탭 ===== -->
+    <div class="tab-panel" id="panel-ui" style="display:none">
+      <div class="settings-section">
+        <h2 class="settings-section-title">UI 설정</h2>
+        <div class="settings-group">
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>폰트 크기</span>
+              <small>12px ~ 20px (현재: <span id="fontSizePreview">14</span>px)</small>
+            </div>
+            <div class="settings-value">
+              <input type="range" id="fontSizeSlider" min="12" max="20" value="14" step="1" class="slider">
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>강조 색상</span>
+              <small>버튼, 링크, 활성 상태 색상</small>
+            </div>
+            <div class="settings-value">
+              <input type="color" id="accentColorPicker" value="#4f8ef7" class="color-picker">
+              <span id="accentColorHex">#4f8ef7</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>사이드바 기본 상태</span>
+              <small>페이지 로드 시 사이드바 초기 상태</small>
+            </div>
+            <div class="settings-value">
+              <select class="form-select" id="sidebarDefault" style="width:160px">
+                <option value="expanded">펼침</option>
+                <option value="collapsed">접힘</option>
+              </select>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>테이블 행 높이</span>
+              <small>데이터 테이블 행 높이</small>
+            </div>
+            <div class="settings-value">
+              <select class="form-select" id="tableRowHeight" style="width:160px">
+                <option value="compact">좁게</option>
+                <option value="normal" selected>보통</option>
+                <option value="comfortable">넓게</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="settings-actions">
+          <button class="btn btn-primary" id="saveUIBtn">UI 설정 저장</button>
+          <button class="btn btn-ghost" id="resetUIBtn">기본값으로 복원</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 보안 탭 ===== -->
+    <div class="tab-panel" id="panel-security" style="display:none">
+      <div class="settings-section">
+        <h2 class="settings-section-title">비밀번호 변경</h2>
+        <div class="settings-form">
+          <div class="form-group">
+            <label class="form-label">현재 비밀번호</label>
+            <input type="password" class="form-input" id="currentPassword" autocomplete="current-password">
+          </div>
+          <div class="form-group">
+            <label class="form-label">새 비밀번호</label>
+            <input type="password" class="form-input" id="newPassword" autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label class="form-label">새 비밀번호 확인</label>
+            <input type="password" class="form-input" id="confirmPassword" autocomplete="new-password">
+          </div>
+          <button class="btn btn-primary" id="changePasswordBtn">비밀번호 변경</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="settings-section-title">활성 세션</h2>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>IP 주소</th>
+                <th>브라우저/기기</th>
+                <th>로그인 시각</th>
+                <th>만료 시각</th>
+                <th>작업</th>
+              </tr>
+            </thead>
+            <tbody id="sessionsTbody">
+              <tr><td colspan="5" class="text-center text-muted">로딩 중...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="settings-actions" style="margin-top:12px">
+          <button class="btn btn-danger" id="terminateAllSessionsBtn">다른 모든 세션 종료</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="settings-section-title">자동 로그아웃</h2>
+        <div class="settings-group">
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>비활성 자동 로그아웃 시간</span>
+              <small>설정 시간 동안 활동이 없으면 자동 로그아웃</small>
+            </div>
+            <div class="settings-value">
+              <select class="form-select" id="inactivityTimeout" style="width:160px">
+                <option value="15">15분</option>
+                <option value="30" selected>30분</option>
+                <option value="60">1시간</option>
+                <option value="120">2시간</option>
+                <option value="0">사용 안 함</option>
+              </select>
+              <button class="btn btn-primary btn-sm" id="saveTimeoutBtn">저장</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 가격 설정 탭 ===== -->
+    <div class="tab-panel" id="panel-pricing" style="display:none">
+      <div class="settings-section">
+        <h2 class="settings-section-title">자동 가격 계산 설정</h2>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
+          공급가·보수 수수료·<strong>부가세 부담 방식</strong>을 반영해 순마진이 목표 이상이 되도록 판매가를 역산합니다.<br>
+          <strong>부가세 모드:</strong> 이론상 <em>매출−매입 차액</em>만 쓰면 마진이 커 보일 수 있어, <strong>맥스(차액, 판매가×n%)</strong>를 기본으로 두어 세금 부담을 <strong>더 큰 쪽(보수)</strong>으로 잡을 수 있습니다. (위탁 판매에서 흔히 쓰는 4% 경험치와 병행)<br>
+          <strong>최소 보장 순마진</strong>은 기본 <strong>12%</strong>이며 설정에서 변경할 수 있습니다. 광고·반품·마켓 할인은 포함되지 않습니다.
+        </p>
+        <div class="settings-form">
+          <div class="form-row">
+            <div class="form-group" style="flex:1">
+              <label class="form-label">목표 순마진율 (%) <span class="required">*</span></label>
+              <input type="number" class="form-input" id="pTargetMargin" min="5" max="80" step="0.5" value="12" style="max-width:120px">
+              <small class="form-hint">역산·에디터 계산의 기준 목표. <strong>최소 보장 순마진</strong>보다 낮게 저장되지 않습니다.</small>
+            </div>
+            <div class="form-group" style="flex:1">
+              <label class="form-label">최소 보장 순마진 (%) <span class="required">*</span></label>
+              <input type="number" class="form-input" id="pMinGuaranteedMargin" min="5" max="50" step="0.5" value="12" style="max-width:120px">
+              <small class="form-hint">이 비율 미만으로는 저장·에디터 판매가 검증을 통과하지 못합니다. (허용 범위 5~50%)</small>
+            </div>
+            <div class="form-group" style="flex:1">
+              <label class="form-label">부가세 부담 방식</label>
+              <select class="form-select" id="pVatBurdenMode" style="max-width:260px">
+                <option value="max_both">맥스 — 차액 vs 판매가×% 중 큰 금액 (기본·보수)</option>
+                <option value="general">차액만 — 매출부가세 − 매입부가세 (이론상)</option>
+                <option value="sales_fixed">판매가×% 고정 — 단순 보수 모델</option>
+              </select>
+              <small class="form-hint">맥스 모드가 “세금을 더 많이 깎는 쪽”을 택합니다.</small>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex:1">
+              <label class="form-label">판매가 대비 부가세(%) <small style="font-weight:normal;color:var(--text-muted)">(고정·맥스 시)</small></label>
+              <input type="number" class="form-input" id="pVatSalesPct" min="0" max="30" step="0.1" value="4" style="max-width:120px">
+              <small class="form-hint"><code>sales_fixed</code>·<code>max_both</code>에서 사용. 통상 4% 전후로 두는 경우가 많습니다.</small>
+            </div>
+            <div class="form-group" style="flex:1">
+              <label class="form-label">납세 유형</label>
+              <select class="form-select" id="pTaxpayerType" style="max-width:200px">
+                <option value="general">일반과세자 (매입부가세 공제)</option>
+                <option value="simple">간이과세자 (부가세 단순)</option>
+                <option value="none">비과세/면세사업자</option>
+              </select>
+              <small class="form-hint">역산·미리보기는 일반과세 구조를 사용합니다.</small>
+            </div>
+            <div class="form-group" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end">
+              <label class="setting-check" for="pSupplyVatIncluded" style="margin-bottom:8px;">
+                <input type="checkbox" id="pSupplyVatIncluded" checked>
+                <span class="setting-check-label">오너클랜 공급가에 부가세 포함 (기본 체크)</span>
+              </label>
+              <small class="form-hint" style="margin-top:2px;">OC 상품 상세 페이지 가격이 VAT 포함이면 체크.</small>
+            </div>
+          </div>
+
+          <h3 style="font-size:13px;font-weight:600;margin:16px 0 10px;color:var(--text-primary);">플랫폼별 수수료율 (%)</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:12px;">
+            <div class="form-group">
+              <label class="form-label">스마트스토어 (%)</label>
+              <input type="number" class="form-input platform-fee-input" data-platform="smartstore"
+                min="0" max="50" step="0.01" value="8" style="max-width:120px">
+              <small class="form-hint">역산 시 보수 단일율(2026 개편 반영)</small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">쿠팡 (%)</label>
+              <input type="number" class="form-input platform-fee-input" data-platform="coupang"
+                min="0" max="50" step="0.01" value="18" style="max-width:120px">
+              <small class="form-hint">카테고리·결제·부가세 등 합산 보수</small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">지마켓 (%)</label>
+              <input type="number" class="form-input platform-fee-input" data-platform="gmarket"
+                min="0" max="50" step="0.01" value="13.5" style="max-width:120px">
+            </div>
+            <div class="form-group">
+              <label class="form-label">토스쇼핑 (%)</label>
+              <input type="number" class="form-input platform-fee-input" data-platform="toss"
+                min="0" max="50" step="0.01" value="12" style="max-width:120px">
+            </div>
+          </div>
+
+          <!-- 실시간 계산 미리보기 -->
+          <div style="background:var(--bg-elevated);border:1px solid var(--border-default);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
+            <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-secondary);">계산 미리보기</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+              <label style="font-size:12px;white-space:nowrap;color:var(--text-muted)">공급가 테스트</label>
+              <input type="number" id="pTestSupply" class="form-input" min="100" step="100" value="10000"
+                style="max-width:120px;font-size:12px">
+              <span style="font-size:12px;color:var(--text-muted)">원</span>
+            </div>
+            <div id="pPricingPreview" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;font-size:12px;"></div>
+          </div>
+
+          <div class="settings-actions">
+            <button class="btn btn-primary" id="savePricingBtn">가격 설정 저장</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 백업/복원 탭 ===== -->
+    <div class="tab-panel" id="panel-backup" style="display:none">
+      <div class="settings-section">
+        <h2 class="settings-section-title">백업</h2>
+        <div class="settings-group">
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>설정 및 매핑 백업</span>
+              <small>설정값, 상품 매핑, 플랫폼 계정 정보 (암호화 상태)</small>
+            </div>
+            <div class="settings-value">
+              <button class="btn btn-secondary" id="backupSettingsBtn">JSON 다운로드</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>주문/발주/송장 데이터 백업</span>
+              <small>날짜 범위를 선택하여 백업 (세금계산서·분쟁 증빙용, 5년 보관)</small>
+            </div>
+            <div class="settings-value" style="flex-wrap:wrap;gap:8px">
+              <input type="date" class="form-input" id="backupStartDate" style="width:140px">
+              <span style="color:var(--text-secondary)">~</span>
+              <input type="date" class="form-input" id="backupEndDate" style="width:140px">
+              <button class="btn btn-secondary" id="backupOrdersBtn">JSON 다운로드</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>감사 로그 백업</span>
+              <small>날짜 범위를 선택하여 백업 (무기한 보관)</small>
+            </div>
+            <div class="settings-value" style="flex-wrap:wrap;gap:8px">
+              <input type="date" class="form-input" id="auditBackupStartDate" style="width:140px">
+              <span style="color:var(--text-secondary)">~</span>
+              <input type="date" class="form-input" id="auditBackupEndDate" style="width:140px">
+              <button class="btn btn-secondary" id="backupAuditBtn">JSON 다운로드</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="settings-section-title">복원</h2>
+        <div class="settings-group">
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>JSON 파일에서 복원</span>
+              <small>복원 전 현재 데이터가 자동 백업됩니다.</small>
+            </div>
+            <div class="settings-value">
+              <input type="file" id="restoreFile" accept=".json" class="file-input">
+              <label for="restoreFile" class="btn btn-secondary">파일 선택</label>
+              <button class="btn btn-danger" id="restoreBtn" disabled>복원 실행</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="app-footer">
+    <span>v0.1.0</span>
+    <span id="footerLastCollect">마지막 수집: —</span>
+    <span id="footerDbStatus">DB: 정상</span>
+    <span id="footerAutomation">자동화: —</span>
+  </footer>
+</div>
+
+<!-- 플랫폼 계정 추가/수정 모달 -->
+<div class="modal-overlay" id="platformModal" style="display:none">
+  <div class="modal" style="width:560px;max-height:80vh;overflow-y:auto">
+    <div class="modal-header">
+      <h3 id="platformModalTitle">플랫폼 계정 추가</h3>
+      <button class="modal-close" id="platformModalClose">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">플랫폼 선택 <span class="required">*</span></label>
+        <select class="form-select" id="modalPlatformType">
+          <option value="">선택하세요</option>
+          <optgroup label="도매처">
+            <option value="domaemae">도매매</option>
+            <option value="ownerclan">오너클랜</option>
+          </optgroup>
+          <optgroup label="판매 마켓">
+            <option value="smartstore">스마트스토어</option>
+            <option value="coupang">쿠팡</option>
+            <option value="gmarket">G마켓/옥션</option>
+            <option value="toss">토스쇼핑</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">계정 이름(별칭) <span class="required">*</span></label>
+        <input type="text" class="form-input" id="modalAccountName" placeholder="예: 내 스마트스토어">
+      </div>
+
+      <!-- 인증 정보 (플랫폼별 동적 렌더링) -->
+      <div id="credentialsForm"></div>
+
+      <!-- 배송 설정은 설정 > 배송 정보 탭에서 관리 (이 모달에서는 제거) -->
+      <div id="deliverySettingsForm" style="display:none">
+        <hr style="border-color:var(--border-default);margin:16px 0">
+        <h4 style="margin-bottom:12px;font-size:var(--font-size-base)">배송 설정 <span style="font-size:0.8em;color:var(--text-muted);font-weight:normal">(선택 — 나중에 수정 가능)</span></h4>
+        <div class="form-group">
+          <label class="form-label">출고지명</label>
+          <input type="text" class="form-input" id="ds_dispatch_name" placeholder="출고지명">
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label class="form-label">출고지 주소</label>
+            <input type="text" class="form-input" id="ds_dispatch_address" placeholder="주소">
+          </div>
+          <div class="form-group" style="width:100px">
+            <label class="form-label">우편번호</label>
+            <input type="text" class="form-input" id="ds_dispatch_zip" placeholder="12345">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">반품/교환지명</label>
+          <input type="text" class="form-input" id="ds_return_name" placeholder="반품지명">
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label class="form-label">반품/교환지 주소</label>
+            <input type="text" class="form-input" id="ds_return_address" placeholder="주소">
+          </div>
+          <div class="form-group" style="width:100px">
+            <label class="form-label">우편번호</label>
+            <input type="text" class="form-input" id="ds_return_zip" placeholder="12345">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label class="form-label">기본 택배사</label>
+            <select class="form-select" id="ds_courier">
+              <option value="CJ대한통운">CJ대한통운</option>
+              <option value="로젠택배">로젠택배</option>
+              <option value="한진택배">한진택배</option>
+              <option value="우체국택배">우체국택배</option>
+              <option value="롯데택배">롯데택배</option>
+              <option value="CVSnet편의점택배">CVSnet편의점택배</option>
+            </select>
+          </div>
+          <div class="form-group" style="width:120px">
+            <label class="form-label">기본 배송비</label>
+            <input type="number" class="form-input" id="ds_shipping_fee" value="3000" min="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label class="form-label">무료배송 기준금액</label>
+            <input type="number" class="form-input" id="ds_free_threshold" value="50000" min="0">
+          </div>
+          <div class="form-group" style="width:130px">
+            <label class="form-label">도서산간 추가배송비</label>
+            <input type="number" class="form-input" id="ds_island_surcharge" value="5000" min="0">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="ds_bundle_shipping" checked>
+            <span>묶음배송 가능</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="platformModalCancel">취소</button>
+      <button class="btn btn-secondary" id="testConnectionBtn">연결 테스트</button>
+      <button class="btn btn-primary" id="savePlatformBtn" disabled>저장</button>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/js/sidebar.js?v=20260407a"></script>
+<script src="/assets/js/common.js?v=20260407a"></script>
+<script src="/assets/js/api.js?v=20260407a"></script>
+<script src="/assets/js/theme.js?v=20260407a"></script>
+<script src="/assets/js/settings.js?v=20260407a"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  initCommonLayout();
+  Settings.init();
+  initPricingSettings();
+  loadDeliveryStatusSummary();
+
+  // 배송정보 탭 전용 직접 바인딩 (settings.js 탭 핸들러 의존 해소)
+  const deliveryTabBtn = document.querySelector('[data-tab="delivery"]');
+  if (deliveryTabBtn) {
+    deliveryTabBtn.addEventListener('click', () => {
+      // 패널 전환 후 데이터 로드
+      setTimeout(loadDeliveryTab, 50);
+    });
+  }
+});
+
+/* ── 가격 설정 탭 초기화 ── */
+async function initPricingSettings() {
+  // 설정 로드
+  try {
+    const data = await API.request('GET', '/api/settings/pricing');
+    const tm = parseFloat(data.target_margin_rate);
+    const mg = parseFloat(data.min_guaranteed_margin_percent);
+    document.getElementById('pTargetMargin').value = Math.max(5, Number.isFinite(tm) ? tm : 12);
+    document.getElementById('pMinGuaranteedMargin').value = Math.max(5, Number.isFinite(mg) ? mg : 12);
+    document.getElementById('pVatBurdenMode').value = data.vat_burden_mode || 'max_both';
+    const vsp = parseFloat(data.vat_burden_sales_percent);
+    document.getElementById('pVatSalesPct').value = Number.isFinite(vsp) ? vsp : 4;
+    document.getElementById('pTaxpayerType').value = data.taxpayer_type ?? 'general';
+    document.getElementById('pSupplyVatIncluded').checked = data.supply_vat_included !== false;
+    const fees = data.platform_fees || {};
+    document.querySelectorAll('.platform-fee-input').forEach(inp => {
+      const pt = inp.dataset.platform;
+      if (fees[pt] !== undefined) inp.value = fees[pt];
+    });
+  } catch (e) { /* 미설정 시 기본값 유지 */ }
+
+  // 실시간 미리보기 이벤트
+  const previewInputs = ['pTargetMargin','pMinGuaranteedMargin','pVatBurdenMode','pVatSalesPct','pTaxpayerType','pSupplyVatIncluded','pTestSupply'];
+  previewInputs.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', updatePricingPreview);
+    if (el) el.addEventListener('input', updatePricingPreview);
+  });
+  document.querySelectorAll('.platform-fee-input').forEach(inp =>
+    inp.addEventListener('input', updatePricingPreview)
+  );
+  updatePricingPreview();
+
+  // 저장 버튼
+  document.getElementById('savePricingBtn').addEventListener('click', savePricingSettings);
+}
+
+function _vatBurdenAppliedJs(sellPrice, inputVatInt, v, mode, salesPct) {
+  const outVat = Math.floor(sellPrice / (1 + v) * v);
+  const gen = Math.max(0, outVat - inputVatInt);
+  const fixed = Math.floor(sellPrice * (salesPct / 100));
+  if (mode === 'general') return gen;
+  if (mode === 'sales_fixed') return fixed;
+  return Math.max(gen, fixed);
+}
+
+function _previewSolveSellPrice(eff, inputVatInt, fee, targetM, mode, salesPct, v) {
+  const sdec = salesPct / 100;
+  const denom = mode === 'general'
+    ? (1 - (fee + targetM) * (1 + v))
+    : (1 - fee - targetM - sdec);
+  if (denom <= 0) return null;
+  let P = Math.max(100, Math.ceil((eff / denom) / 100) * 100);
+  const bps = Math.round(targetM * 10000);
+  for (let i = 0; i < 12000; i++) {
+    const vatP = _vatBurdenAppliedJs(P, inputVatInt, v, mode, salesPct);
+    const feeAm = Math.floor(P * fee);
+    const net = P - eff - vatP - feeAm;
+    if (net * 10000 >= P * bps) return P;
+    P += 100;
+  }
+  return null;
+}
+
+function updatePricingPreview() {
+  const supply = parseInt(document.getElementById('pTestSupply').value, 10) || 10000;
+  const tmRaw = parseFloat(document.getElementById('pTargetMargin').value);
+  const mgRaw = parseFloat(document.getElementById('pMinGuaranteedMargin').value);
+  const targetMarginPct = Math.max(5, Number.isFinite(tmRaw) ? tmRaw : 12);
+  const minGPct = Math.max(5, Math.min(50, Number.isFinite(mgRaw) ? mgRaw : 12));
+  const mode = document.getElementById('pVatBurdenMode').value || 'max_both';
+  const salesPct = Math.max(0, Math.min(30, parseFloat(document.getElementById('pVatSalesPct').value) || 0));
+  const supplyVatIncluded = document.getElementById('pSupplyVatIncluded').checked;
+  const v = 0.10;
+
+  const effInt = supplyVatIncluded ? supply : Math.round(supply * 1.1);
+  const inputVatInt = supplyVatIncluded
+    ? Math.floor(effInt - effInt / (1 + v))
+    : Math.floor(supply * v);
+  const targetM = Math.max(targetMarginPct, minGPct) / 100;
+
+  const labels = {
+    smartstore:'스마트스토어', coupang:'쿠팡',
+    gmarket:'지마켓', toss:'토스쇼핑'
+  };
+  let html = '';
+  document.querySelectorAll('.platform-fee-input').forEach(inp => {
+    const pt = inp.dataset.platform;
+    const fee = parseFloat(inp.value) / 100 || 0;
+
+    const sellPrice = _previewSolveSellPrice(effInt, inputVatInt, fee, targetM, mode, salesPct, v);
+    if (sellPrice === null) {
+      html += `<div style="background:var(--bg-surface);padding:6px 10px;border-radius:4px;font-size:11px;">
+        <span style="color:var(--text-muted)">${labels[pt]||pt}</span>
+        <span style="color:var(--danger,#e53935);margin-left:4px">판매 불가</span></div>`;
+      return;
+    }
+    const vatP = _vatBurdenAppliedJs(sellPrice, inputVatInt, v, mode, salesPct);
+    const feeAm = Math.floor(sellPrice * fee);
+    const netMargin = sellPrice - effInt - vatP - feeAm;
+    const actualMarginPct = Math.round(netMargin / sellPrice * 1000) / 10;
+
+    const color = actualMarginPct + 1e-6 >= minGPct
+      ? 'var(--success,#4caf50)' : 'var(--warning,#ff9800)';
+    html += `<div style="background:var(--bg-surface);padding:6px 10px;border-radius:4px;font-size:11px;display:flex;justify-content:space-between;">
+      <span style="color:var(--text-muted)">${labels[pt]||pt}</span>
+      <span><strong>${sellPrice.toLocaleString()}원</strong>
+        <span style="color:${color};margin-left:4px">${actualMarginPct}%</span>
+      </span></div>`;
+  });
+  document.getElementById('pPricingPreview').innerHTML = html ||
+    '<span style="color:var(--text-muted)">수수료를 입력하세요</span>';
+}
+
+// ── 배송정보 탭 ──────────────────────────────────────────────────────────────
+const COURIER_LIST = ['CJ대한통운','한진택배','롯데택배','우체국택배','로젠택배','경동택배','대신택배','일양로지스','GTX로지스','홈픽'];
+const PLATFORM_NAMES = { smartstore:'네이버 스마트스토어', coupang:'쿠팡', toss:'토스쇼핑', gmarket:'G마켓', auction:'옥션' };
+
+async function loadDeliveryTab() {
+  const menu   = document.getElementById('deliveryTabMenu');
+  const panels = document.getElementById('deliveryTabPanels');
+  if (!menu || !panels) return;
+
+  menu.innerHTML = `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;color:var(--text-muted);font-size:13px">
+    <span style="display:inline-block;width:14px;height:14px;border:2px solid var(--accent-primary);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite"></span>
+    마켓 계정 목록을 불러오는 중...</div>`;
+  panels.innerHTML = '';
+
+  try {
+    const data = await API.platforms.list();
+    if (!data) { menu.innerHTML = '<div style="color:var(--accent-danger);padding:8px 0">로그인 세션이 만료되었습니다.</div>'; return; }
+
+    const all = Array.isArray(data) ? data : (data.accounts || []);
+    const markets = all.filter(a => a.role === 'market');
+
+    if (!markets.length) {
+      menu.innerHTML = '';
+      panels.innerHTML = `
+        <div style="padding:32px;text-align:center;border:1px dashed var(--border-default);border-radius:var(--radius)">
+          <div style="font-size:32px;margin-bottom:10px">🏪</div>
+          <div style="font-weight:600;margin-bottom:6px">등록된 판매 마켓 계정이 없습니다</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">배송 정보는 마켓 계정별로 관리됩니다. 먼저 플랫폼 계정을 추가하세요.</div>
+          <button class="btn btn-sm btn-primary" onclick="document.querySelector('[data-tab=platforms]').click()">플랫폼 계정 탭으로 이동</button>
+        </div>`;
+      return;
+    }
+
+    // 탭 메뉴 생성
+    const doneCount = markets.filter(a => a.delivery_settings && Object.keys(a.delivery_settings).length > 0).length;
+    menu.innerHTML = markets.map((acc, idx) => {
+      const ds = acc.delivery_settings || {};
+      const hasDs = Object.keys(ds).length > 0;
+      const pName = PLATFORM_NAMES[acc.platform_type] || acc.platform_type;
+      const badge = hasDs
+        ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-success);margin-left:5px;vertical-align:middle" title="배송 설정 완료"></span>`
+        : `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-warning);margin-left:5px;vertical-align:middle" title="배송 설정 미완료"></span>`;
+      return `<button class="delivery-tab-btn" data-panel="dpanel-${acc.id}" style="
+          padding:7px 14px;border-radius:6px 6px 0 0;border:1px solid var(--border-default);
+          border-bottom:none;background:var(--bg-surface);cursor:pointer;font-size:13px;
+          color:var(--text-secondary);white-space:nowrap;transition:background 0.15s;
+          ${idx===0?'background:var(--bg-elevated);color:var(--text-primary);':''}
+        " onclick="switchDeliveryTab('dpanel-${acc.id}')">
+        ${escapeHtml(acc.account_name || pName)}${badge}
+        <span style="font-size:10px;color:var(--text-muted);margin-left:3px">(${escapeHtml(pName)})</span>
+      </button>`;
+    }).join('') +
+    `<div style="flex:1;border-bottom:1px solid var(--border-default)"></div>
+     <span style="padding:8px 4px 0;font-size:12px;color:var(--text-muted);align-self:center">
+       ${doneCount}/${markets.length} 완료</span>`;
+
+    // 탭 패널 생성
+    panels.innerHTML = markets.map((acc, idx) => renderDeliveryPanel(acc, idx === 0)).join('');
+
+  } catch (e) {
+    menu.innerHTML = '';
+    panels.innerHTML = `<div style="padding:16px;border:1px solid var(--accent-danger);border-radius:var(--radius);color:var(--accent-danger)">
+      ⚠️ 계정 정보 로드 실패: ${escapeHtml(e.message || '알 수 없는 오류')}<br>
+      <button class="btn btn-sm btn-ghost" style="margin-top:8px" onclick="loadDeliveryTab()">다시 시도</button>
+    </div>`;
+  }
+}
+
+function switchDeliveryTab(panelId) {
+  document.querySelectorAll('.delivery-tab-btn').forEach(btn => {
+    const active = btn.dataset.panel === panelId;
+    btn.style.background = active ? 'var(--bg-elevated)' : 'var(--bg-surface)';
+    btn.style.color       = active ? 'var(--text-primary)' : 'var(--text-secondary)';
+  });
+  document.querySelectorAll('.delivery-tab-panel').forEach(p => {
+    p.style.display = p.id === panelId ? 'block' : 'none';
+  });
+}
+
+function renderDeliveryPanel(acc, isActive) {
+  const ds  = acc.delivery_settings || {};
+  const pid = acc.id;
+  const pName = PLATFORM_NAMES[acc.platform_type] || acc.platform_type || '';
+  const hasConfig = Object.keys(ds).length > 0;
+  const courierOptions = COURIER_LIST.map(c =>
+    `<option value="${c}" ${(ds.courier_company||'CJ대한통운')===c?'selected':''}>${c}</option>`
+  ).join('');
+
+  const g = (path, def='') => {
+    const parts = path.split('.');
+    let v = ds;
+    for (const k of parts) v = (v||{})[k];
+    return v ?? def;
+  };
+
+  return `
+  <div class="delivery-tab-panel" id="dpanel-${pid}" style="display:${isActive?'block':'none'}">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <div>
+        <span style="font-size:15px;font-weight:600">${escapeHtml(acc.account_name || pName)}</span>
+        <span style="font-size:12px;color:var(--text-muted);margin-left:6px">${escapeHtml(pName)}</span>
+        ${hasConfig
+          ? `<span style="font-size:11px;color:var(--accent-success);margin-left:8px">● 배송 설정 완료</span>`
+          : `<span style="font-size:11px;color:var(--accent-warning);margin-left:8px">⚠ 배송 설정 미완료 — 발주 전 반드시 입력하세요</span>`}
+      </div>
+      <button class="btn btn-sm btn-primary" onclick="saveDelivery(${pid})">💾 저장</button>
+    </div>
+
+    <div class="settings-form">
+      <fieldset style="border:1px solid var(--border-default);border-radius:6px;padding:12px 16px;margin-bottom:14px">
+        <legend style="font-size:12px;font-weight:600;color:var(--text-secondary);padding:0 6px">📦 출고지 정보</legend>
+        <div class="form-row">
+          <div class="form-group" style="flex:2">
+            <label class="form-label">출고지명</label>
+            <input class="form-input" id="ds_${pid}_dispatch_name" value="${escapeHtml(g('dispatch_location.name'))}" placeholder="예: 서울 창고">
+          </div>
+          <div class="form-group" style="width:130px">
+            <label class="form-label">우편번호</label>
+            <input class="form-input" id="ds_${pid}_dispatch_zip" value="${escapeHtml(g('dispatch_location.zip_code'))}" placeholder="12345">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">출고지 주소</label>
+          <input class="form-input" id="ds_${pid}_dispatch_address" value="${escapeHtml(g('dispatch_location.address'))}" placeholder="도로명 주소 입력">
+        </div>
+      </fieldset>
+
+      <fieldset style="border:1px solid var(--border-default);border-radius:6px;padding:12px 16px;margin-bottom:14px">
+        <legend style="font-size:12px;font-weight:600;color:var(--text-secondary);padding:0 6px">↩️ 반품/교환지 정보</legend>
+        <div class="form-row">
+          <div class="form-group" style="flex:2">
+            <label class="form-label">반품/교환지명</label>
+            <input class="form-input" id="ds_${pid}_return_name" value="${escapeHtml(g('return_location.name'))}" placeholder="예: 서울 반품센터">
+          </div>
+          <div class="form-group" style="width:130px">
+            <label class="form-label">우편번호</label>
+            <input class="form-input" id="ds_${pid}_return_zip" value="${escapeHtml(g('return_location.zip_code'))}" placeholder="12345">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">반품/교환지 주소</label>
+          <input class="form-input" id="ds_${pid}_return_address" value="${escapeHtml(g('return_location.address'))}" placeholder="도로명 주소 입력">
+        </div>
+      </fieldset>
+
+      <fieldset style="border:1px solid var(--border-default);border-radius:6px;padding:12px 16px;margin-bottom:14px">
+        <legend style="font-size:12px;font-weight:600;color:var(--text-secondary);padding:0 6px">🚚 배송비 / 택배사</legend>
+        <div class="form-row">
+          <div class="form-group" style="flex:2">
+            <label class="form-label">기본 택배사</label>
+            <select class="form-select" id="ds_${pid}_courier">${courierOptions}</select>
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">기본 배송비 (원)</label>
+            <input class="form-input" type="number" id="ds_${pid}_shipping_fee" value="${g('default_shipping_fee', 3000)}" min="0">
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">무료배송 기준 (원)</label>
+            <input class="form-input" type="number" id="ds_${pid}_free_threshold" value="${g('free_shipping_threshold', 50000)}" min="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label class="form-label">도서산간 추가 배송비 (원)</label>
+            <input class="form-input" type="number" id="ds_${pid}_island" value="${g('island_surcharge', 5000)}" min="0">
+          </div>
+          <div class="form-group" style="flex:1;display:flex;align-items:flex-end;padding-bottom:2px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" id="ds_${pid}_bundle" ${g('bundle_shipping', true)!==false?'checked':''}>
+              <span class="form-label" style="margin:0">묶음배송 가능</span>
+            </label>
+          </div>
+        </div>
+      </fieldset>
+
+      <div id="delivery-msg-${pid}" style="font-size:13px;margin-top:4px"></div>
+    </div>
+  </div>`;
+}
+
+async function saveDelivery(accountId) {
+  const g = (id) => document.getElementById(`ds_${accountId}_${id}`)?.value?.trim() || '';
+  const ds = {
+    dispatch_location: {
+      name: g('dispatch_name'),
+      address: g('dispatch_address'),
+      zip_code: g('dispatch_zip'),
+    },
+    return_location: {
+      name: g('return_name'),
+      address: g('return_address'),
+      zip_code: g('return_zip'),
+    },
+    courier_company: g('courier'),
+    default_shipping_fee: parseInt(g('shipping_fee')) || 3000,
+    free_shipping_threshold: parseInt(g('free_threshold')) || 50000,
+    bundle_shipping: document.getElementById(`ds_${accountId}_bundle`)?.checked ?? true,
+    island_surcharge: parseInt(g('island')) || 5000,
+  };
+  const msg = document.getElementById(`delivery-msg-${accountId}`);
+  try {
+    await request('PATCH', `/platforms/${accountId}`, { delivery_settings: ds });
+    msg.style.color = 'var(--accent-success)';
+    msg.textContent = '✅ 저장되었습니다.';
+    setTimeout(() => { if(msg) msg.textContent = ''; }, 3000);
+    loadDeliveryStatusSummary();
+  } catch (e) {
+    msg.style.color = 'var(--accent-danger)';
+    msg.textContent = '저장 실패: ' + (e.message || '');
+  }
+}
+
+// ── 배송 설정 현황 요약 ────────────────────────────────────────────────────────
+async function loadDeliveryStatusSummary() {
+  // ── 각 마켓에 이미 설정된 기본 배송 정보를 사용
+  // 연동(자격증명 등록)만 되어 있으면 정상 사용 가능, 별도 배송 설정 불필요
+  const box = document.getElementById('deliveryStatusSummary');
+  if (!box) return;
+  try {
+    const data = await API.platforms.list();
+    const markets = (data.accounts || data || []).filter(a => a.role === 'market');
+    if (!markets.length) {
+      box.innerHTML = '<div style="color:var(--text-muted);font-size:12px">등록된 판매 마켓 계정이 없습니다. 플랫폼 계정 탭에서 추가하세요.</div>';
+      return;
+    }
+    const platformNames = { smartstore:'네이버 스마트스토어', coupang:'쿠팡', toss:'토스쇼핑', gmarket:'G마켓', auction:'옥션' };
+    box.innerHTML = markets.map(acc => {
+      // 자격증명이 등록되어 있으면 = 마켓 기본 배송 설정 사용 가능
+      const isConnected = acc.is_active !== false;
+      const icon  = isConnected ? '✅' : '⚠️';
+      const label = isConnected ? '마켓 기본 배송 설정 사용' : '비활성 계정';
+      const color = isConnected ? 'var(--accent-success)' : 'var(--text-muted)';
+      const platformLabel = platformNames[acc.platform_type] || acc.platform_type;
+      // 별도 배송 설정이 입력된 경우 커스텀 설정 표시
+      const hasCustom = acc.delivery_settings && Object.keys(acc.delivery_settings).length > 0;
+      const customBadge = hasCustom
+        ? `<span style="font-size:10px;background:rgba(79,142,247,0.15);color:var(--accent-primary);padding:1px 5px;border-radius:3px;margin-left:5px">커스텀 배송</span>`
+        : '';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--bg-surface);border-radius:4px;">
+        <span><strong>${escapeHtml(acc.account_name || platformLabel)}</strong>${customBadge}
+          <span style="color:var(--text-muted);font-size:11px;margin-left:4px">(${escapeHtml(platformLabel)})</span></span>
+        <span style="color:${color};font-size:12px">${icon} ${label}</span>
+      </div>`;
+    }).join('') +
+    `<div style="margin-top:8px;font-size:11px;color:var(--text-muted);padding:4px 10px;border-radius:4px;background:var(--bg-elevated)">
+      ℹ️ 각 마켓의 셀러 센터에 이미 설정된 기본 배송 정보가 사용됩니다.
+      별도 커스텀 배송 정보 입력은 선택 사항입니다.
+    </div>`;
+  } catch {
+    box.innerHTML = '<div style="color:var(--text-muted);font-size:12px">계정 정보를 불러올 수 없습니다.</div>';
+  }
+}
+
+async function savePricingSettings() {
+  const fees = {};
+  document.querySelectorAll('.platform-fee-input').forEach(inp => {
+    fees[inp.dataset.platform] = parseFloat(inp.value) || 0;
+  });
+  let minG = Math.max(5, Math.min(50, parseFloat(document.getElementById('pMinGuaranteedMargin').value) || 12));
+  let targetMargin = Math.max(5, parseFloat(document.getElementById('pTargetMargin').value) || 12);
+  if (targetMargin < minG) targetMargin = minG;
+  document.getElementById('pMinGuaranteedMargin').value = minG;
+  document.getElementById('pTargetMargin').value = targetMargin;
+  try {
+    await API.request('PUT', '/api/settings/pricing', {
+      target_margin_rate: targetMargin,
+      min_guaranteed_margin_percent: minG,
+      vat_burden_mode: document.getElementById('pVatBurdenMode').value,
+      vat_burden_sales_percent: Math.max(0, Math.min(30, parseFloat(document.getElementById('pVatSalesPct').value) || 0)),
+      taxpayer_type: document.getElementById('pTaxpayerType').value,
+      supply_vat_included: document.getElementById('pSupplyVatIncluded').checked,
+      vat_rate: 10.0,
+      platform_fees: fees,
+    });
+    alert('가격 설정이 저장되었습니다.');
+  } catch (e) {
+    alert('저장 실패: ' + (e.message || e));
+  }
+}
+</script>
+</body>
+</html>

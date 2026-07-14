@@ -1,0 +1,542 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>키워드 도매 소싱 — ChannelP</title>
+<link rel="stylesheet" href="/assets/css/common.css?v=20260407a">
+<link rel="stylesheet" href="/assets/css/layout.css?v=20260407a">
+<link rel="stylesheet" href="/assets/css/components.css?v=20260407a">
+<style>
+/* ── 전체 그리드 ── */
+.page-grid {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) { .page-grid { grid-template-columns: 1fr; } }
+
+/* ── 키워드 목록 ── */
+.kws-list { overflow-y: auto; max-height: 65vh; }
+.kws-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-default);
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  background: transparent;
+  border-left: none; border-right: none; border-top: none;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.kws-item:hover { background: var(--bg-elevated); }
+.kws-item.active { background: var(--bg-elevated); }
+.kws-rank {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.kws-rank.top3 { color: var(--accent-primary); font-weight: 700; }
+.kws-info { flex: 1; min-width: 0; }
+.kws-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kws-meta { font-size: 11px; color: var(--text-muted); }
+.kws-date { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+
+/* ── 상품 카드 그리드 ── */
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  padding: 14px;
+}
+@media (max-width: 600px)  { .products-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1400px) { .products-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); } }
+
+.product-card {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+.product-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.15); transform: translateY(-1px); }
+.product-card-img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;        /* 이미지 짜르지 않고 전체 표시 */
+  background: var(--bg-surface);
+  display: block;
+  padding: 4px;
+  box-sizing: border-box;
+}
+.product-card-no-img {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0;
+}
+.product-card-body {
+  padding: 8px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.product-card-name {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.product-card-price { font-size: 13px; font-weight: 700; color: var(--accent, #4f8ef7); }
+.product-card-meta { font-size: 10px; color: var(--text-muted); }
+.product-card-actions { padding: 6px 8px 8px; }
+.products-empty {
+  grid-column: 1 / -1;
+  padding: 30px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ── OC 실시간 검색 카드 ── */
+.oc-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; padding: 14px; }
+.oc-card { border: 1px solid var(--border-default); border-radius: var(--radius); overflow: hidden; background: var(--bg-secondary); display: flex; flex-direction: column; }
+.oc-card img { width: 100%; aspect-ratio: 1; object-fit: cover; background: var(--bg-elevated); }
+.oc-card-body { padding: 8px; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.oc-card-name { font-size: 12px; font-weight: 600; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.oc-card-price { font-size: 13px; color: var(--accent, #4f8ef7); font-weight: 700; }
+.oc-card-cat { font-size: 11px; color: var(--text-muted); }
+.oc-card-actions { padding: 6px 8px 8px; }
+</style>
+</head>
+<body>
+<div class="app-wrapper">
+  <header class="app-header">
+    <div class="header-left">
+      <button class="sidebar-toggle-btn" id="sidebarToggle"><span></span><span></span><span></span></button>
+      <span class="header-logo">ChannelP</span>
+    </div>
+    <div class="header-right">
+      <div class="header-user">
+        <span id="headerUsername">—</span>
+        <button class="btn btn-sm btn-ghost" id="logoutBtn">로그아웃</button>
+      </div>
+    </div>
+  </header>
+
+  <nav class="app-sidebar" id="appSidebar"></nav>
+
+  <main class="app-main">
+    <div class="page-header">
+      <div class="breadcrumb"><span>홈</span> / <span>키워드 도매 소싱</span></div>
+      <h1 class="page-title">키워드 도매 소싱</h1>
+    </div>
+
+    <!-- 자동화 안내 배너 -->
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(79,142,247,0.08);border:1px solid rgba(79,142,247,0.25);border-radius:var(--radius);margin-bottom:16px;font-size:13px">
+      <span style="font-size:18px">🤖</span>
+      <div>
+        <div style="font-weight:600;color:var(--text-primary)">자동 연동 실행 중 (매시간 15분)</div>
+        <div style="color:var(--text-secondary)">키워드 분석에서 수집된 인기 키워드를 바탕으로, 매 시간 15분에 오너클랜 도매 상품을 자동으로 연동합니다. 아래 버튼은 즉시 수동 실행할 때만 누르세요.</div>
+      </div>
+    </div>
+
+    <section class="card" style="padding:14px;margin-bottom:14px">
+      <div class="filter-row" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <div>
+          <label class="form-label">키워드 기간(일)</label>
+          <input id="days" class="form-input" type="number" value="7" min="1" max="60" style="width:110px">
+        </div>
+        <div>
+          <label class="form-label">키워드 수</label>
+          <input id="keywordLimit" class="form-input" type="number" value="20" min="1" max="200" style="width:110px">
+        </div>
+        <div>
+          <label class="form-label">키워드당 상품</label>
+          <input id="perKeyword" class="form-input" type="number" value="20" min="1" max="100" style="width:110px">
+        </div>
+        <button id="loadKeywordsBtn" class="btn btn-ghost">키워드 목록 새로고침</button>
+        <button id="collectAllBtn" class="btn btn-primary">지금 즉시 수동 연동 실행</button>
+      </div>
+      <div id="runStatus" style="margin-top:8px;font-size:13px;color:var(--text-muted)">대기 중</div>
+    </section>
+
+    <div class="page-grid">
+      <section class="card">
+        <div class="card-header" style="padding:12px 14px;border-bottom:1px solid var(--border-default)">
+          <h3 style="margin:0">키워드 목록</h3>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">키워드 분석 페이지에서 수집된 인기 키워드가 자동으로 표시됩니다</div>
+        </div>
+        <div class="kws-list" id="keywordList"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-header" style="padding:12px 14px;border-bottom:1px solid var(--border-default);display:flex;justify-content:space-between;align-items:center">
+          <h3 style="margin:0" id="productsTitle">연동된 오너클랜 도매 상품</h3>
+          <button id="collectSelectedBtn" class="btn btn-sm btn-primary">선택 키워드 수동 수집</button>
+        </div>
+        <div class="products-grid" id="productsGrid">
+          <div class="products-empty">키워드를 선택하세요.</div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 오너클랜 실시간 검색 결과 -->
+    <section class="card" style="margin-top:16px">
+      <div class="card-header" style="padding:12px 14px;border-bottom:1px solid var(--border-default);display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0">오너클랜 실시간 검색 결과 <span id="ocKeywordBadge" style="font-weight:400;font-size:13px;color:var(--text-muted)"></span></h3>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label class="form-label" style="margin:0">표시 수</label>
+          <select id="ocLimitSelect" class="form-select" style="width:90px">
+            <option value="10" selected>10개</option>
+            <option value="20">20개</option>
+            <option value="30">30개</option>
+            <option value="50">50개</option>
+          </select>
+          <button id="ocSearchBtn" class="btn btn-sm btn-ghost">오너클랜 다시 검색</button>
+        </div>
+      </div>
+      <div id="ocResultsArea">
+        <div style="padding:18px;color:var(--text-muted);font-size:13px">왼쪽에서 키워드를 선택하면 오너클랜 도매 상품이 표시됩니다.</div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer"><span>v0.1.0</span></footer>
+</div>
+
+<script src="/assets/js/sidebar.js?v=20260407a"></script>
+<script src="/assets/js/common.js?v=20260407a"></script>
+<script src="/assets/js/api.js?v=20260407a"></script>
+<script src="/assets/js/theme.js?v=20260407a"></script>
+<script>
+let currentKeyword = '';
+
+// HTTP 이미지를 HTTPS 프록시로 변환 (Mixed Content 방지)
+function toProxyUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('http://')) {
+    return '/api/products/proxy-image?url=' + encodeURIComponent(url);
+  }
+  return url;
+}
+
+// 상태 코드 → 한글 표시
+const STOCK_STATUS_LABELS = {
+  'in_stock':     '판매중',
+  'out_of_stock': '품절',
+  'discontinued': '단종',
+  'limited':      '한정수량',
+  'pre_order':    '예약주문',
+  '':             '—',
+};
+function stockLabel(status) {
+  return STOCK_STATUS_LABELS[status] || status || '—';
+}
+
+// 상태 배지 색상
+function stockBadgeStyle(status) {
+  switch (status) {
+    case 'in_stock':     return 'background:#e8f5e9;color:#388e3c;';
+    case 'out_of_stock': return 'background:#fce4ec;color:#c62828;';
+    case 'discontinued': return 'background:#f3e5f5;color:#6a1b9a;';
+    default:             return 'background:var(--bg-elevated);color:var(--text-muted);';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  initCommonLayout();
+  document.getElementById('loadKeywordsBtn').addEventListener('click', loadKeywords);
+  document.getElementById('collectAllBtn').addEventListener('click', collectLatest);
+  document.getElementById('collectSelectedBtn').addEventListener('click', collectSelectedKeyword);
+  document.getElementById('ocSearchBtn').addEventListener('click', () => loadOcResults(true));
+  document.getElementById('ocLimitSelect').addEventListener('change', () => loadOcResults(true));
+  await loadKeywords();
+});
+
+async function loadKeywords() {
+  const days = Number(document.getElementById('days').value || 7);
+  const limit = Number(document.getElementById('keywordLimit').value || 20);
+  const box = document.getElementById('keywordList');
+  box.innerHTML = '<div style="padding:12px">로딩 중...</div>';
+
+  try {
+    const data = await API.products.keywordWholesaleKeywords({ days, limit });
+    const rows = data.keywords || [];
+    if (!rows.length) {
+      box.innerHTML = '<div style="padding:12px" class="text-muted">키워드 데이터가 없습니다.</div>';
+      return;
+    }
+
+    box.innerHTML = rows.map((row, idx) => {
+      const rank = idx + 1;
+      const isTop3 = rank <= 3;
+      return `
+      <button class="kws-item ${row.keyword === currentKeyword ? 'active' : ''}" onclick="selectKeyword('${escapeHtml(row.keyword)}')">
+        <span class="kws-rank ${isTop3 ? 'top3' : ''}">${rank}위</span>
+        <div class="kws-info">
+          <div class="kws-name">${escapeHtml(row.keyword)}</div>
+          <div class="kws-meta">연동 ${formatNumber(row.linked_products)}개</div>
+        </div>
+        <span class="kws-date">${escapeHtml((row.last_seen_at || '').slice(5,10))}</span>
+      </button>`;
+    }).join('');
+
+    if (!currentKeyword) {
+      currentKeyword = rows[0].keyword;
+      await loadProducts();
+      await loadKeywords();
+    }
+  } catch (err) {
+    box.innerHTML = '<div style="padding:12px" class="text-danger">키워드 로드 실패</div>';
+    showToast(err.message || '키워드 조회 실패', 'error');
+  }
+}
+
+async function selectKeyword(keyword) {
+  currentKeyword = keyword;
+  await loadProducts();
+  await loadKeywords();
+  await loadOcResults();
+}
+
+async function collectSelectedKeyword() {
+  if (!currentKeyword) return;
+  const perKeyword = Number(document.getElementById('perKeyword').value || 20);
+  document.getElementById('runStatus').textContent = `수집 중: ${currentKeyword}`;
+  try {
+    const res = await API.products.keywordWholesaleCollect({ keyword: currentKeyword, max_items: perKeyword });
+    showToast(`${res.keyword}: ${res.saved}개 저장`, 'success');
+    document.getElementById('runStatus').textContent = `완료: ${res.keyword} (${res.saved}개 저장)`;
+    await loadProducts();
+    await loadKeywords();
+  } catch (err) {
+    document.getElementById('runStatus').textContent = '수집 실패';
+    showToast(err.message || '수집 실패', 'error');
+  }
+}
+
+async function collectLatest() {
+  const days = Number(document.getElementById('days').value || 7);
+  const keywordLimit = Number(document.getElementById('keywordLimit').value || 20);
+  const perKeyword = Number(document.getElementById('perKeyword').value || 20);
+  const statusEl = document.getElementById('runStatus');
+  const btn = document.getElementById('collectAllBtn');
+  btn.disabled = true;
+
+  // 1. 키워드 목록 먼저 가져오기
+  let keywords = [];
+  try {
+    const kwRes = await API.products.keywordWholesaleKeywords({ days, limit: keywordLimit });
+    // API는 { keywords: [...] } 형식으로 반환 — items/직접배열 모두 대응
+    const kwList = kwRes.keywords || kwRes.items || (Array.isArray(kwRes) ? kwRes : []);
+    keywords = kwList.map(k => (typeof k === 'string' ? k : k.keyword || '')).filter(Boolean);
+  } catch (e) {
+    statusEl.textContent = '키워드 목록 로드 실패';
+    btn.disabled = false;
+    return;
+  }
+  if (!keywords.length) {
+    statusEl.textContent = '연동할 키워드 없음';
+    btn.disabled = false;
+    return;
+  }
+
+  // 2. 키워드 1개씩 순차 처리 (nginx 60초 timeout 우회)
+  let totalSaved = 0, ocSuccess = 0, failed = 0;
+  for (let i = 0; i < keywords.length; i++) {
+    const kw = keywords[i];
+    statusEl.textContent = `연동 중 ${i + 1}/${keywords.length}: "${kw}"...`;
+    try {
+      const res = await API.products.keywordWholesaleCollect({ keyword: kw, max_items: perKeyword });
+      totalSaved += res.saved || 0;
+      if (res.source !== 'db_fallback') ocSuccess++;
+    } catch (e) {
+      failed++;
+    }
+  }
+
+  const label = `완료: ${keywords.length}개 키워드 · 오너클랜 ${ocSuccess}개 성공 · 저장 ${totalSaved}건` +
+    (failed ? ` · 실패 ${failed}건` : '');
+  statusEl.textContent = label;
+  showToast(label, failed === keywords.length ? 'warning' : 'success');
+  btn.disabled = false;
+  await loadKeywords();
+  await loadProducts();
+}
+
+async function loadProducts() {
+  const grid = document.getElementById('productsGrid');
+  const title = document.getElementById('productsTitle');
+
+  if (!currentKeyword) {
+    grid.innerHTML = '<div class="products-empty">키워드를 선택하세요.</div>';
+    return;
+  }
+
+  grid.innerHTML = '<div class="products-empty">로딩 중...</div>';
+  try {
+    const data = await API.products.keywordWholesaleProducts({ keyword: currentKeyword, page: 1, page_size: 100 });
+    const rows = data.items || [];
+    if (title) title.textContent = `연동된 오너클랜 도매 상품 (${rows.length}개)`;
+    if (!rows.length) {
+      grid.innerHTML = '<div class="products-empty">연동된 상품이 없습니다.</div>';
+      return;
+    }
+    grid.innerHTML = rows.map(row => productCardHtml(row)).join('');
+  } catch (err) {
+    grid.innerHTML = '<div class="products-empty" style="color:var(--danger,#e53935)">조회 실패</div>';
+    showToast(err.message || '상품 조회 실패', 'error');
+  }
+}
+
+function productCardHtml(row) {
+  const rawThumb = row.thumbnail_url || '';
+  const thumb = rawThumb ? escapeHtml(toProxyUrl(rawThumb)) : '';
+  const name = escapeHtml(row.product_name || '');
+  const price = formatPrice(row.supply_price || 0);
+  const kwEsc = escapeHtml(row.keyword || '');
+  const code = escapeHtml(row.source_product_id || '');
+  const status = row.stock_status || '';
+  const sid = stockLabel(status);
+  const sStyle = stockBadgeStyle(status);
+  const wid = Number(row.wholesale_id || 0);
+
+  // 이미지 없는 경우 플레이스홀더 SVG 사용
+  const imgPart = thumb
+    ? `<img class="product-card-img" src="${thumb}" alt="${name}"
+           loading="lazy"
+           onerror="this.onerror=null;this.src='';this.parentNode.innerHTML=getNoImgPlaceholder('${code}');">`
+    : `<div class="product-card-img product-card-no-img">${noImgPlaceholderSvg(code)}</div>`;
+
+  return `
+    <div class="product-card">
+      ${imgPart}
+      <div class="product-card-body">
+        <div class="product-card-name" title="${name}">${name}</div>
+        <div class="product-card-price">${price}</div>
+        <div class="product-card-meta">
+          ${kwEsc ? `<span>${kwEsc}</span> · ` : ''}
+          <span style="font-size:10px;padding:1px 5px;border-radius:8px;${sStyle}">${sid}</span>
+        </div>
+        ${code ? `<div class="product-card-meta">${code}</div>` : ''}
+      </div>
+      <div class="product-card-actions">
+        <button class="btn btn-sm btn-primary open-editor-btn" style="width:100%"
+          data-wid="${wid}"
+          data-selfcode="${encodeURIComponent(row.source_product_id || '')}"
+          data-keyword="${encodeURIComponent(row.keyword || '')}">에디터</button>
+      </div>
+    </div>`;
+}
+
+function noImgPlaceholderSvg(code) {
+  return `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg-elevated);color:var(--text-muted);font-size:11px;gap:6px;">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4">
+      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+      <polyline points="21 15 16 10 5 21"/>
+    </svg>
+    <span>이미지 없음</span>
+    ${code ? `<span style="font-size:10px;opacity:0.6">${code}</span>` : ''}
+  </div>`;
+}
+function getNoImgPlaceholder(code) {
+  return `<div class="product-card-img product-card-no-img">${noImgPlaceholderSvg(code)}</div>`;
+}
+
+function openEditor(wholesaleId, keyword, selfcode) {
+  if (!wholesaleId) {
+    showToast('wholesale_id가 없어 에디터를 열 수 없습니다.', 'warning');
+    return;
+  }
+  let u = `/pages/editor_v2.html?mode=source&wholesale_id=${encodeURIComponent(wholesaleId)}&keyword=${encodeURIComponent(keyword || '')}`;
+  // 오너클랜 selfcode — editor-oc-live API가 OC GraphQL 조회 시 우선 사용
+  if (selfcode) u += `&selfcode=${encodeURIComponent(String(selfcode).trim())}`;
+  location.href = u;
+}
+
+// 에디터 버튼 이벤트 위임 (data 속성 기반 — inline onclick JSON 충돌 방지)
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.open-editor-btn');
+  if (!btn) return;
+  const wid = btn.dataset.wid;
+  const selfcode = decodeURIComponent(btn.dataset.selfcode || '');
+  const keyword = decodeURIComponent(btn.dataset.keyword || '');
+  openEditor(wid, keyword, selfcode);
+});
+
+// ── OC 실시간 검색 ────────────────────────────────────────────────────────────
+
+async function loadOcResults(forceRefresh = false) {
+  if (!currentKeyword) return;
+  const limit = Number(document.getElementById('ocLimitSelect').value || 10);
+  const area = document.getElementById('ocResultsArea');
+  const badge = document.getElementById('ocKeywordBadge');
+  badge.textContent = `— "${currentKeyword}"`;
+  area.innerHTML = '<div style="padding:18px;color:var(--text-muted);font-size:13px">검색 중...</div>';
+  try {
+    const data = await API.oc.search(currentKeyword, limit);
+    const items = (data.items || []).filter(item => Number(item.stock || 0) > 0);
+    if (!items.length) {
+      area.innerHTML = '<div style="padding:18px;color:var(--text-muted);font-size:13px">검색 결과가 없습니다.</div>';
+      return;
+    }
+    area.innerHTML = `<div class="oc-card-grid">${items.map(ocCardHtml).join('')}</div>`;
+  } catch (err) {
+    area.innerHTML = '<div style="padding:18px;color:var(--danger);font-size:13px">오너클랜 검색 실패: ' + escapeHtml(err.message || '') + '</div>';
+  }
+}
+
+function ocCardHtml(item) {
+  const no = escapeHtml(item.product_no || '');
+  const nm = escapeHtml(item.product_name || '');
+  const px = formatPrice(item.price || 0);
+  const cat = escapeHtml(item.category || '');
+  const img = escapeHtml(toProxyUrl(item.image_url || ''));
+  const stock = Number(item.stock || 0);
+  const stockBadge = stock > 0
+    ? `<span style="color:var(--success);font-size:11px">재고 ${stock}</span>`
+    : `<span style="color:var(--danger);font-size:11px">품절</span>`;
+  return `
+    <div class="oc-card">
+      <img src="${img}" alt="${nm}" onerror="this.style.display='none'">
+      <div class="oc-card-body">
+        <div class="oc-card-name" title="${nm}">${nm}</div>
+        <div class="oc-card-price">${px}</div>
+        <div class="oc-card-cat">${cat}</div>
+        ${stockBadge}
+      </div>
+      <div class="oc-card-actions">
+        <button class="btn btn-sm btn-primary" style="width:100%" onclick="openOcEditor('${no}')">에디터로 보내기</button>
+      </div>
+    </div>`;
+}
+
+async function openOcEditor(productNo) {
+  if (!productNo) return;
+  const kw = encodeURIComponent(currentKeyword || '');
+  // DB에 없으면 임포트 후 에디터 오픈
+  try {
+    await API.oc.importProduct(productNo);
+  } catch (e) {
+    // 이미 DB에 있어도 임포트 실패해도 에디터는 열기 시도
+  }
+  location.href = `/pages/editor_v2.html?mode=oc&product_no=${encodeURIComponent(productNo)}&keyword=${kw}`;
+}
+</script>
+</body>
+</html>

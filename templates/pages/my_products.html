@@ -1,0 +1,869 @@
+{% load static %}
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>내 상품 관리 — ChannelP</title>
+<link rel="stylesheet" href="/assets/css/common.css?v=20260406d">
+<link rel="stylesheet" href="/assets/css/layout.css?v=20260406d">
+<link rel="stylesheet" href="/assets/css/components.css?v=20260406d">
+<style>
+/* ─── 페이지 전용 스타일 ─────────────────────────────── */
+.mp-summary-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:1200px){.mp-summary-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){.mp-summary-grid{grid-template-columns:repeat(2,1fr)}}
+
+.mp-filter{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--radius);margin-bottom:16px;overflow:hidden}
+.mp-filter-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 16px}
+
+.account-tabs{display:flex;gap:2px;overflow-x:auto;white-space:nowrap;padding-bottom:2px}
+.account-tabs .tab{display:inline-flex;align-items:center;gap:8px}
+.account-tab-meta{font-size:.72rem;color:var(--text-muted)}
+.account-tabs-wrap{min-width:0;flex:1}
+
+.mp-table-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap}
+.mp-bulk-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--tint-primary);border-radius:var(--radius);font-size:.85rem}
+
+.mp-thumb{width:40px;height:40px;object-fit:cover;border-radius:4px;background:var(--bg-hover)}
+.mp-thumb-placeholder{width:40px;height:40px;border-radius:4px;background:var(--bg-hover);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:10px}
+
+.platform-badge{display:inline-block;padding:2px 7px;border-radius:99px;font-size:.72rem;font-weight:600;white-space:nowrap}
+.pb-smartstore{background:#03c75a22;color:#03824a}
+.pb-coupang{background:#e7280822;color:#c72008}
+.pb-gmarket{background:#00aff022;color:#0078a8}
+.pb-auction{background:#e5161622;color:#b31212}
+.pb-toss{background:#0061ff22;color:#0050cc}
+.pb-default{background:var(--tint-info);color:var(--text-primary)}
+
+.status-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;font-size:.72rem}
+.status-active{background:#dcfce7;color:#15803d}
+.status-inactive{background:#fee2e2;color:#dc2626}
+
+.auto-icon{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:700}
+.auto-on{background:#dcfce7;color:#15803d}
+.auto-off{background:#f3f4f6;color:#9ca3af}
+
+@media(max-width:900px){
+  .account-tabs-wrap{width:100%}
+  .mp-filter-row .form-select,
+  .mp-filter-row .form-input{width:100% !important}
+}
+
+/* ─── 편집 모달 ─────────────────────────────────────── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal-box{background:var(--bg-surface);border-radius:var(--radius-lg);padding:24px;width:min(520px,94vw);max-height:85vh;overflow-y:auto;box-shadow:var(--shadow-xl)}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.modal-title{font-size:1rem;font-weight:700}
+.modal-close{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1.3rem;padding:4px}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal-grid.full{grid-template-columns:1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;color:var(--text-muted);font-weight:500}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-default)}
+.toggle-row:last-child{border-bottom:none}
+.toggle-label{font-size:.85rem}
+.toggle-desc{font-size:.75rem;color:var(--text-muted)}
+.toggle-switch{position:relative;width:40px;height:22px;flex-shrink:0}
+.toggle-switch input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:#d1d5db;border-radius:99px;cursor:pointer;transition:.25s}
+.toggle-slider::before{content:'';position:absolute;width:18px;height:18px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.25s}
+.toggle-switch input:checked+.toggle-slider{background:var(--accent)}
+.toggle-switch input:checked+.toggle-slider::before{transform:translateX(18px)}
+.modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+
+/* ─── 마진율 일괄 입력 모달 ─────────────────────────── */
+#bulkMarginModal .modal-box{width:min(340px,94vw)}
+
+/* ─── 상세 패널 (우측 슬라이드) ─────────────────────── */
+.detail-panel{position:fixed;top:0;right:-440px;width:440px;height:100vh;background:var(--bg-surface);border-left:1px solid var(--border-default);box-shadow:var(--shadow-xl);z-index:900;transition:right .28s cubic-bezier(.4,0,.2,1);overflow-y:auto;padding:24px}
+.detail-panel.open{right:0}
+.detail-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.detail-section{margin-bottom:18px}
+.detail-section-title{font-size:.78rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;letter-spacing:.05em}
+.detail-kv{display:flex;justify-content:space-between;padding:5px 0;font-size:.84rem;border-bottom:1px solid var(--border-default)}
+.detail-kv:last-child{border-bottom:none}
+.detail-kv .k{color:var(--text-muted)}
+.upload-history-item{padding:6px 0;border-bottom:1px solid var(--border-default);font-size:.8rem;display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center}
+</style>
+</head>
+<body>
+<div class="app-wrapper">
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="header-left">
+      <button class="sidebar-toggle-btn" id="sidebarToggle"><span></span><span></span><span></span></button>
+      <span class="header-logo">ChannelP</span>
+    </div>
+    <div class="header-right">
+      <button class="icon-btn" id="notifBell">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="notif-badge" id="notifBadge" style="display:none">0</span>
+      </button>
+      <div class="header-user">
+        <span id="headerUsername">—</span>
+        <button class="btn btn-sm btn-ghost" id="logoutBtn">로그아웃</button>
+      </div>
+    </div>
+    <div class="notif-panel" id="notifPanel" style="display:none">
+      <div class="notif-panel-header"><span>알림</span><button class="btn btn-xs btn-ghost" id="markAllReadBtn">모두 읽음</button></div>
+      <ul class="notif-list" id="notifList"></ul>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <nav class="app-sidebar" id="appSidebar"></nav>
+
+  <!-- MAIN -->
+  <main class="app-main">
+    <section class="page-shell">
+    <div class="page-header page-shell-header">
+      <div class="breadcrumb"><span>홈</span> / <span>내 상품 관리</span></div>
+      <h1 class="page-title page-shell-title">내 상품 관리</h1>
+    </div>
+
+    <div class="page-shell-body">
+
+    <!-- 요약 카드 + 동기화 -->
+    <div class="mp-summary-grid" id="summaryGrid">
+      <div class="stat-card"><div class="stat-value" id="s_total">—</div><div class="stat-label">전체 상품</div></div>
+      <div class="stat-card"><div class="stat-value" id="s_active">—</div><div class="stat-label">판매중/노출중</div></div>
+      <div class="stat-card"><div class="stat-value" id="s_inactive">—</div><div class="stat-label">비활성</div></div>
+      <div class="stat-card"><div class="stat-value" id="s_stores">—</div><div class="stat-label">연결 상점</div></div>
+      <div class="stat-card"><div class="stat-value" id="s_platforms">—</div><div class="stat-label">마켓 종류</div></div>
+      <div class="stat-card"><div class="stat-value" id="s_synced">—</div><div class="stat-label">마지막 동기화</div></div>
+    </div>
+
+    <!-- 계정 동기화 상태 배너 -->
+    <div id="syncBanner" style="display:none;background:var(--tint-info);border:1px solid var(--border-info,#93c5fd);border-radius:var(--radius);padding:10px 16px;margin-bottom:16px;align-items:center;gap:12px;flex-wrap:wrap">
+      <span id="syncBannerMsg" style="flex:1;font-size:.85rem">동기화 중...</span>
+      <span id="syncBannerCount" style="font-size:.82rem;color:var(--text-muted)"></span>
+    </div>
+
+    <!-- 상점 탭 + 상점 단위 삭제 -->
+    <div class="mp-filter" style="margin-bottom:12px">
+      <div class="mp-filter-row" style="justify-content:space-between;gap:10px">
+        <div class="account-tabs-wrap">
+          <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:6px">상점별 보기</div>
+          <div id="accountTabs" class="tabs tab-strip account-tabs"><button type="button" class="tab active" data-account-id="all"><span>전체</span></button></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-sm btn-danger" id="deleteStoreAllBtn" disabled>현재 상점 전체 삭제</button>
+          <button class="btn btn-sm btn-ghost" id="deleteStoreLowBtn" disabled>현재 상점 저판매 상품 삭제</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 필터 -->
+    <div class="mp-filter">
+      <div class="mp-filter-row">
+        <!-- 마켓 플랫폼 -->
+        <select class="form-select" id="fPlatform" style="width:130px">
+          <option value="">전체 플랫폼</option>
+          <option value="smartstore">스마트스토어</option>
+          <option value="coupang">쿠팡</option>
+          <option value="gmarket">G마켓</option>
+          <option value="auction">옥션</option>
+          <option value="toss">토스쇼핑</option>
+        </select>
+        <!-- 상태 -->
+        <select class="form-select" id="fStatus" style="width:120px">
+          <option value="">전체 상태</option>
+          <option value="ON_SALE">판매중</option>
+          <option value="SUSPENSION">판매중단</option>
+          <option value="CLOSE">판매종료</option>
+          <option value="OUTOFSTOCK">품절</option>
+          <option value="EXPOSURE">노출중(토스)</option>
+          <option value="HIDE">숨김(토스)</option>
+        </select>
+        <select class="form-select" id="fSecondary" style="width:130px">
+          <option value="">2차가공 전체</option>
+          <option value="no">미완료</option>
+          <option value="yes">완료</option>
+        </select>
+        <!-- 정렬 -->
+        <select class="form-select" id="fSort" style="width:130px">
+          <option value="synced_at">동기화 최신순</option>
+          <option value="sale_price">판매가 높은순</option>
+          <option value="review_count">리뷰 많은순</option>
+          <option value="product_name">상품명 순</option>
+        </select>
+        <!-- 페이지당 -->
+        <select class="form-select" id="fPageSize" style="width:90px">
+          <option value="20">20개</option>
+          <option value="50">50개</option>
+          <option value="100">100개</option>
+        </select>
+        <!-- 검색 -->
+        <input class="form-input" id="fKeyword" placeholder="상품명 검색" style="width:200px">
+        <button class="btn btn-primary btn-sm" id="searchBtn">검색</button>
+        <button class="btn btn-ghost btn-sm" id="resetBtn">초기화</button>
+        <!-- CSV 내보내기 -->
+        <button class="btn btn-primary btn-sm" id="syncAllBtn" style="margin-left:auto">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>전체 동기화
+        </button>
+        <button class="btn btn-ghost btn-sm" id="exportBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>CSV
+        </button>
+      </div>
+    </div>
+
+    <!-- 툴바 -->
+    <div class="mp-table-toolbar">
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="checkAll" title="전체 선택">
+        <span id="totalCount" style="font-size:.85rem;color:var(--text-muted)">0건</span>
+        <!-- 일괄 처리 버튼 (선택 시 표시) -->
+        <span id="bulkBar" style="display:none" class="mp-bulk-bar">
+          <span id="bulkCount">0</span>개 선택됨
+          <button class="btn btn-sm btn-primary" id="bulkEdit">수정 시작</button>
+          <button class="btn btn-sm btn-ghost" id="bulkActivate">활성화</button>
+          <button class="btn btn-sm btn-ghost" id="bulkDeactivate">비활성화</button>
+          <button class="btn btn-sm" style="background:var(--tint-primary);color:var(--accent)" id="bulkMarginBtn">마진율 일괄변경</button>
+          <button class="btn btn-sm btn-danger" id="bulkDelete">삭제</button>
+        </span>
+      </div>
+      <div id="paginationTop" style="display:flex;gap:4px"></div>
+    </div>
+
+    <!-- 테이블 -->
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width:36px"><input type="checkbox" id="checkAllHead" title="전체 선택"></th>
+            <th style="width:48px">이미지</th>
+            <th>상품명</th>
+            <th style="width:100px">마켓</th>
+            <th style="width:120px">상점</th>
+            <th style="width:90px;text-align:right">판매가</th>
+            <th style="width:80px;text-align:center">상태</th>
+            <th style="width:60px;text-align:center">리뷰</th>
+            <th style="width:70px;text-align:center">도매매핑</th>
+            <th style="width:90px;text-align:center">2차가공</th>
+            <th style="width:100px;text-align:center">동기화</th>
+            <th style="width:80px;text-align:center">작업</th>
+          </tr>
+        </thead>
+        <tbody id="mpTbody">
+          <tr><td colspan="12" class="text-center text-muted" style="padding:40px">로딩 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="paginationBot" style="display:flex;justify-content:center;gap:4px;margin-top:16px;flex-wrap:wrap"></div>
+    </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <span>v0.1.0</span>
+    <span id="footerLastCollect">마지막 수집: —</span>
+    <span id="footerDbStatus">DB: 정상</span>
+    <span id="footerAutomation">자동화: —</span>
+  </footer>
+</div>
+
+<!-- ─── 마진율 일괄 변경 모달 ─────────────────────────── -->
+<div class="modal-overlay" id="bulkMarginModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">마진율 일괄 변경</span>
+      <button class="modal-close" id="bulkMarginClose">✕</button>
+    </div>
+    <p id="bulkMarginDesc" style="font-size:.85rem;color:var(--text-muted);margin-bottom:16px"></p>
+    <div class="form-group">
+      <label>새 마진율 (%)</label>
+      <input class="form-input" id="bulkMarginInput" type="number" min="0" max="500" step="0.1" placeholder="예: 25.0" style="font-size:1.1rem">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="bulkMarginCancel">취소</button>
+      <button class="btn btn-primary" id="bulkMarginSave">적용</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── 상세 패널 ─────────────────────────────────────── -->
+<div class="detail-panel" id="detailPanel">
+  <div class="detail-panel-header">
+    <span style="font-weight:700;font-size:.95rem">상품 상세</span>
+    <button class="modal-close" id="detailPanelClose">✕</button>
+  </div>
+  <div id="detailContent">
+    <div class="text-center text-muted" style="padding:40px">로딩 중...</div>
+  </div>
+</div>
+
+<script src="/assets/js/sidebar.js?v=20260406d"></script>
+<script src="/assets/js/common.js?v=20260406d"></script>
+<script src="/assets/js/api.js?v=20260406d"></script>
+<script src="/assets/js/theme.js?v=20260406d"></script>
+<script>
+"use strict";
+
+// ── 상태 ────────────────────────────────────────────────
+let _page = 1;
+let _selectedIds = new Set();
+let _editProductId = null;
+let _syncPollTimer = null;
+let _accounts = [];
+let _activeAccountId = 'all';
+
+// ── 플랫폼 배지 ─────────────────────────────────────────
+const PLATFORM_LABELS = {
+  smartstore: '스마트스토어', coupang: '쿠팡',
+  gmarket: 'G마켓', auction: '옥션', toss: '토스쇼핑',
+  domaemae: '도매매', ownerclan: '오너클랜',
+};
+const PLATFORM_CLS = {
+  smartstore: 'pb-smartstore', coupang: 'pb-coupang',
+  gmarket: 'pb-gmarket', auction: 'pb-auction', toss: 'pb-toss',
+};
+function platformBadge(p) {
+  const cls = PLATFORM_CLS[p] || 'pb-default';
+  return `<span class="platform-badge ${cls}">${PLATFORM_LABELS[p] || p}</span>`;
+}
+function fmtPrice(v) { return v != null ? Number(v).toLocaleString() + '원' : '—'; }
+function fmtDate(s) {
+  if (!s) return '—';
+  return String(s).slice(0, 16).replace('T', ' ');
+}
+
+// ── 요약 + 계정 목록 로드 ────────────────────────────────
+async function loadSummary() {
+  try {
+    const d = await request('GET', '/my-products/summary');
+    _accounts = d.accounts || [];
+    document.getElementById('s_total').textContent     = (d.total_all || 0).toLocaleString();
+    document.getElementById('s_active').textContent    = (d.total_active || 0).toLocaleString();
+    document.getElementById('s_inactive').textContent  = (d.total_inactive || 0).toLocaleString();
+    document.getElementById('s_stores').textContent    = (d.store_count || 0).toLocaleString();
+    document.getElementById('s_platforms').textContent = (d.platform_count || 0).toLocaleString();
+    document.getElementById('s_synced').textContent    = fmtDate(d.latest_sync);
+    renderAccountTabs(d.accounts || []);
+  } catch (_) {}
+}
+
+function renderAccountTabs(accounts) {
+  const box = document.getElementById('accountTabs');
+  if (!box) return;
+
+  const totalAll = Number(document.getElementById('s_total')?.textContent?.replace(/,/g, '') || 0);
+  const allBtn = `<button type="button" class="tab ${_activeAccountId === 'all' ? 'active' : ''}" data-account-id="all"><span>전체</span><span class="account-tab-meta">${totalAll.toLocaleString()}건</span></button>`;
+  const items = (accounts || []).map(acc => {
+    const aid = String(acc.id);
+    const active = _activeAccountId === aid ? 'active' : '';
+    const platform = PLATFORM_LABELS[acc.platform_type] || escapeHtml(acc.platform_type || 'market');
+    const name = escapeHtml(acc.account_name || ('계정#' + aid));
+    return `<button type="button" class="tab ${active}" data-account-id="${aid}"><span>${platform}:${name}</span><span class="account-tab-meta">${Number(acc.product_count || 0).toLocaleString()}건</span></button>`;
+  }).join('');
+
+  box.innerHTML = allBtn + items;
+  box.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _activeAccountId = btn.dataset.accountId || 'all';
+      _page = 1;
+      renderAccountTabs(_accounts);
+      syncStoreDeleteButtons();
+      loadTable();
+    });
+  });
+
+  syncStoreDeleteButtons();
+}
+
+function getSelectedAccount() {
+  if (_activeAccountId === 'all') return null;
+  const idNum = Number(_activeAccountId);
+  if (!Number.isFinite(idNum)) return null;
+  return (_accounts || []).find(a => Number(a.id) === idNum) || null;
+}
+
+function syncStoreDeleteButtons() {
+  const selected = getSelectedAccount();
+  const disabled = !selected;
+  const b1 = document.getElementById('deleteStoreAllBtn');
+  const b2 = document.getElementById('deleteStoreLowBtn');
+  if (b1) b1.disabled = disabled;
+  if (b2) b2.disabled = disabled;
+}
+
+// ── 동기화 실행 ─────────────────────────────────────────
+async function syncAccount(accountId) {
+  try {
+    await request('POST', `/my-products/sync${accountId ? '?account_id=' + accountId : ''}`);
+    showToast('동기화 시작됐습니다. 완료까지 수분 소요될 수 있습니다.');
+    startSyncPoll();
+  } catch (e) {
+    alert('동기화 시작 실패: ' + (e.message || e));
+  }
+}
+
+async function syncAll() {
+  try {
+    const r = await request('POST', '/my-products/sync');
+    showToast(r.message || '전체 동기화 시작');
+    startSyncPoll();
+  } catch (e) {
+    alert('동기화 실패: ' + (e.message || e));
+  }
+}
+
+async function deleteCurrentStoreAll() {
+  const acc = getSelectedAccount();
+  if (!acc) { alert('상점 탭에서 삭제할 상점을 먼저 선택하세요.'); return; }
+
+  const name = acc.account_name || `계정#${acc.id}`;
+  const ok1 = confirm(`[${name}] 상점 상품 캐시를 전체 삭제합니다.\n복구할 수 없습니다.\n진행할까요?`);
+  if (!ok1) return;
+  const ok2 = confirm(`최종 확인: [${name}] 상점만 삭제됩니다.\n다른 상점 데이터는 삭제되지 않습니다.`);
+  if (!ok2) return;
+
+  try {
+    const res = await request('POST', `/my-products/account/${acc.id}/delete-all`);
+    showToast(`삭제 완료: ${(res.deleted || 0).toLocaleString()}건`);
+    await loadSummary();
+    await loadTable();
+  } catch (e) {
+    alert('상점 전체 삭제 실패: ' + (e.message || e));
+  }
+}
+
+async function deleteCurrentStoreLowSelling() {
+  const acc = getSelectedAccount();
+  if (!acc) { alert('상점 탭에서 삭제할 상점을 먼저 선택하세요.'); return; }
+
+  const reviewInput = prompt('리뷰 수 기준 이상은 보존됩니다.\n삭제 기준(리뷰 수 미만)을 입력하세요.', '5');
+  if (reviewInput === null) return;
+  const reviewThreshold = Number(reviewInput);
+  if (!Number.isFinite(reviewThreshold) || reviewThreshold < 0) {
+    alert('리뷰 수 기준은 0 이상의 숫자여야 합니다.');
+    return;
+  }
+
+  const salesInput = prompt('월판매 추정치 기준 이상은 보존됩니다.\n삭제 기준(월판매 미만)을 입력하세요.', '3');
+  if (salesInput === null) return;
+  const salesThreshold = Number(salesInput);
+  if (!Number.isFinite(salesThreshold) || salesThreshold < 0) {
+    alert('월판매 기준은 0 이상의 숫자여야 합니다.');
+    return;
+  }
+
+  const name = acc.account_name || `계정#${acc.id}`;
+  const ok1 = confirm(`[${name}] 상점에서 리뷰 ${reviewThreshold} 미만 + 월판매 ${salesThreshold} 미만 상품을 삭제합니다.\n복구할 수 없습니다.\n진행할까요?`);
+  if (!ok1) return;
+  const ok2 = confirm(`최종 확인: [${name}] 상점에만 적용됩니다.`);
+  if (!ok2) return;
+
+  try {
+    const res = await request('POST', `/my-products/account/${acc.id}/delete-low-selling?keep_review_count_gte=${encodeURIComponent(String(reviewThreshold))}&keep_monthly_sales_gte=${encodeURIComponent(String(salesThreshold))}`);
+    showToast(`삭제 완료: ${(res.deleted || 0).toLocaleString()}건`);
+    await loadSummary();
+    await loadTable();
+  } catch (e) {
+    alert('저판매 상품 삭제 실패: ' + (e.message || e));
+  }
+}
+
+function startSyncPoll() {
+  if (_syncPollTimer) clearInterval(_syncPollTimer);
+  const banner = document.getElementById('syncBanner');
+  if (banner) banner.style.display = 'flex';
+  _syncPollTimer = setInterval(async () => {
+    try {
+      const status = await request('GET', '/my-products/sync-status');
+      const entries = Object.values(status);
+      const running = entries.some(e => e.running);
+      const totalCount = entries.reduce((s, e) => s + (e.count || 0), 0);
+      const msg = document.getElementById('syncBannerMsg');
+      const cnt = document.getElementById('syncBannerCount');
+      if (msg) msg.textContent = running ? '동기화 진행 중...' : '동기화 완료';
+      if (cnt) cnt.textContent = `${totalCount.toLocaleString()}건 처리됨`;
+      if (!running) {
+        clearInterval(_syncPollTimer);
+        _syncPollTimer = null;
+        setTimeout(() => {
+          if (banner) banner.style.display = 'none';
+          loadSummary();
+          loadTable();
+          showToast('동기화 완료!');
+        }, 1500);
+      }
+      loadSummary();
+    } catch (_) {}
+  }, 3000);
+}
+
+async function initSyncStatus() {
+  try {
+    const status = await request('GET', '/my-products/sync-status');
+    const entries = Object.values(status || {});
+    const running = entries.some(e => e && e.running);
+    const totalCount = entries.reduce((sum, e) => sum + Number((e && e.count) || 0), 0);
+    const banner = document.getElementById('syncBanner');
+    const msg = document.getElementById('syncBannerMsg');
+    const cnt = document.getElementById('syncBannerCount');
+    if (running) {
+      if (banner) banner.style.display = 'flex';
+      if (msg) msg.textContent = '동기화 진행 중...';
+      if (cnt) cnt.textContent = `${totalCount.toLocaleString()}건 처리됨`;
+      startSyncPoll();
+      return;
+    }
+    if (banner) banner.style.display = 'none';
+  } catch (_) {}
+}
+
+// ── 테이블 로드 ─────────────────────────────────────────
+async function loadTable() {
+  const tbody = document.getElementById('mpTbody');
+  tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted" style="padding:30px">로딩 중...</td></tr>';
+  _selectedIds.clear();
+  updateBulkBar();
+
+  const ps      = parseInt(document.getElementById('fPageSize').value) || 50;
+  const sort    = document.getElementById('fSort').value || 'synced_at';
+  const params  = new URLSearchParams({ page: _page, page_size: ps, sort_by: sort, sort_dir: 'desc' });
+  const platform = document.getElementById('fPlatform').value;
+  const status   = document.getElementById('fStatus').value;
+  const secondary = document.getElementById('fSecondary').value;
+  const keyword  = document.getElementById('fKeyword').value.trim();
+  if (platform) params.set('market_platform', platform);
+  if (_activeAccountId !== 'all') params.set('market_account_id', _activeAccountId);
+  if (status)   params.set('status', status);
+  if (secondary) params.set('secondary_processed', secondary);
+  if (keyword)  params.set('keyword', keyword);
+
+  try {
+    const data = await request('GET', `/my-products?${params}`);
+    renderTable(data.items || []);
+    renderPagination(data.total || 0, ps);
+    document.getElementById('totalCount').textContent = (data.total || 0).toLocaleString() + '건';
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="12" class="text-center text-muted" style="padding:30px">오류: ${escapeHtml(err.message || String(err))}</td></tr>`;
+  }
+}
+
+// ── 테이블 렌더 ─────────────────────────────────────────
+const STATUS_ACTIVE  = new Set(['ON_SALE', 'EXPOSURE', 'ACTIVE']);
+const STATUS_INACTIVE = new Set(['SUSPENSION', 'CLOSE', 'OUTOFSTOCK', 'HIDE']);
+
+function renderTable(items) {
+  const tbody = document.getElementById('mpTbody');
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="12" class="text-center text-muted" style="padding:40px">상품이 없습니다. 동기화 버튼을 눌러 마켓 상품을 가져오세요.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = items.map(p => {
+    const thumbSrc = p.thumbnail_url
+      ? (p.thumbnail_url.startsWith('http://') ? '/api/products/proxy-image?url=' + encodeURIComponent(p.thumbnail_url) : p.thumbnail_url)
+      : '';
+    const thumb = thumbSrc
+      ? `<img class="mp-thumb" src="${escapeHtml(thumbSrc)}" alt="" loading="lazy" onerror="this.style.opacity='0.3'">`
+      : `<div class="mp-thumb-placeholder">없음</div>`;
+
+    const isActive = STATUS_ACTIVE.has(p.status);
+    const statusPill = isActive
+      ? `<span class="status-pill status-active">${escapeHtml(p.status_label || p.status)}</span>`
+      : `<span class="status-pill status-inactive">${escapeHtml(p.status_label || p.status)}</span>`;
+
+    const mappingBadge = p.mapping_id
+      ? `<span title="도매상품 매핑됨" style="color:#15803d;font-size:.8rem;font-weight:700">✓ 매핑</span>`
+      : `<span style="color:var(--text-muted);font-size:.75rem">미매핑</span>`;
+    const secondaryBadge = p.secondary_processed
+      ? `<span title="2차가공 완료" style="color:#15803d;font-size:.8rem;font-weight:700">완료</span>`
+      : `<span style="color:#f59e0b;font-size:.75rem;font-weight:700">미완료</span>`;
+
+    const checked = _selectedIds.has(p.id) ? 'checked' : '';
+
+    const productLink = `<a href="javascript:void(0)" onclick="openDetail(${p.id})" class="link">${escapeHtml(p.product_name || '—')}</a>`;
+
+    return `<tr data-id="${p.id}">
+      <td style="text-align:center"><input type="checkbox" class="row-check" data-id="${p.id}" ${checked}></td>
+      <td>${thumb}</td>
+      <td>
+        ${productLink}
+        <div style="font-size:.72rem;color:var(--text-muted);margin-top:2px">${escapeHtml(p.category_name || '')}${p.option_count > 0 ? ` · 옵션 ${p.option_count}개` : ''}</div>
+      </td>
+      <td>${platformBadge(p.market_platform)}</td>
+      <td style="font-size:.82rem">${escapeHtml(p.market_account_name || '—')}</td>
+      <td style="text-align:right;font-size:.85rem;font-weight:600">${fmtPrice(p.sale_price)}</td>
+      <td style="text-align:center">${statusPill}</td>
+      <td style="text-align:center;font-size:.82rem">${p.review_count > 0 ? p.review_count.toLocaleString() : '—'}</td>
+      <td style="text-align:center">${mappingBadge}</td>
+      <td style="text-align:center">${secondaryBadge}</td>
+      <td style="text-align:center;font-size:.72rem;color:var(--text-muted)">${fmtDate(p.synced_at)}</td>
+      <td style="text-align:center">
+        <button class="btn btn-xs btn-ghost" onclick="openEditor(${p.id})" title="수정">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="btn btn-xs btn-danger" onclick="confirmHide(${p.id})" title="마켓에서 숨기기">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // 체크박스 이벤트
+  document.querySelectorAll('.row-check').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const id = parseInt(cb.dataset.id);
+      cb.checked ? _selectedIds.add(id) : _selectedIds.delete(id);
+      updateBulkBar();
+      syncHeaderCheck();
+    });
+  });
+}
+
+// ── 페이지네이션 ─────────────────────────────────────────
+function renderPagination(total, ps) {
+  const totalPages = Math.max(1, Math.ceil(total / ps));
+  [document.getElementById('paginationTop'), document.getElementById('paginationBot')].forEach(el => {
+    if (!el) return;
+    let html = '';
+    html += `<button class="btn btn-xs btn-ghost" onclick="goPage(1)" ${_page===1?'disabled':''}>«</button>`;
+    html += `<button class="btn btn-xs btn-ghost" onclick="goPage(${_page-1})" ${_page<=1?'disabled':''}>‹</button>`;
+    const start = Math.max(1, _page - 3);
+    const end   = Math.min(totalPages, _page + 3);
+    for (let i = start; i <= end; i++) {
+      html += `<button class="btn btn-xs ${i === _page ? 'btn-primary' : 'btn-ghost'}" onclick="goPage(${i})">${i}</button>`;
+    }
+    html += `<button class="btn btn-xs btn-ghost" onclick="goPage(${_page+1})" ${_page>=totalPages?'disabled':''}>›</button>`;
+    html += `<button class="btn btn-xs btn-ghost" onclick="goPage(${totalPages})" ${_page===totalPages?'disabled':''}>»</button>`;
+    el.innerHTML = html;
+  });
+}
+function goPage(p) { _page = p; loadTable(); }
+
+// ── 체크 헬퍼 ────────────────────────────────────────────
+function syncHeaderCheck() {
+  const checks = document.querySelectorAll('.row-check');
+  const allChecked = checks.length > 0 && [...checks].every(c => c.checked);
+  document.getElementById('checkAll').checked = allChecked;
+  document.getElementById('checkAllHead').checked = allChecked;
+}
+function updateBulkBar() {
+  const cnt = _selectedIds.size;
+  const bar = document.getElementById('bulkBar');
+  bar.style.display = cnt > 0 ? 'flex' : 'none';
+  document.getElementById('bulkCount').textContent = cnt;
+}
+function selectAll(checked) {
+  document.querySelectorAll('.row-check').forEach(cb => {
+    cb.checked = checked;
+    const id = parseInt(cb.dataset.id);
+    checked ? _selectedIds.add(id) : _selectedIds.delete(id);
+  });
+  updateBulkBar();
+}
+
+function openEditor(id) {
+  location.href = `/pages/editor.html?mode=edit&id=${encodeURIComponent(String(id))}`;
+}
+
+function openBulkEditor() {
+  const ids = [..._selectedIds];
+  if (!ids.length) return;
+  location.href = `/pages/editor.html?mode=edit&ids=${encodeURIComponent(ids.join(','))}`;
+}
+
+// ── 숨기기 확인 ──────────────────────────────────────────
+async function confirmHide(id) {
+  if (!confirm('마켓에서 이 상품을 숨기시겠습니까?\n(실제 마켓 API를 통해 판매 중단됩니다)')) return;
+  try {
+    await request('DELETE', `/my-products/${id}`);
+    loadTable(); loadSummary();
+    showToast('숨겨졌습니다.');
+  } catch (e) { alert('숨기기 실패: ' + (e.message || e)); }
+}
+
+// ── 일괄 처리 ────────────────────────────────────────────
+async function bulkAction(action) {
+  const ids = [..._selectedIds];
+  if (!ids.length) return;
+  try {
+    await request('POST', '/my-products/bulk', { ids, action });
+    _selectedIds.clear(); updateBulkBar();
+    loadTable(); loadSummary();
+    showToast(`일괄 처리 완료 (${ids.length}건)`);
+  } catch (e) { alert('일괄 처리 실패: ' + (e.message || e)); }
+}
+
+// ── 마진율 일괄 변경 ─────────────────────────────────────
+function openBulkMarginModal() {
+  document.getElementById('bulkMarginDesc').textContent =
+    `선택된 ${_selectedIds.size}개 상품의 마진율을 일괄 변경합니다.`;
+  document.getElementById('bulkMarginInput').value = '';
+  document.getElementById('bulkMarginModal').classList.add('open');
+}
+async function applyBulkMargin() {
+  const margin = parseFloat(document.getElementById('bulkMarginInput').value);
+  if (isNaN(margin) || margin < 0 || margin > 500) {
+    alert('마진율은 0~500% 사이로 입력하세요.');
+    return;
+  }
+  try {
+    await request('POST', '/my-products/bulk', {
+      ids: [..._selectedIds], action: 'update_margin', margin_rate: margin,
+    });
+    document.getElementById('bulkMarginModal').classList.remove('open');
+    _selectedIds.clear();
+    updateBulkBar();
+    loadTable();
+    loadSummary();
+    showToast(`마진율 ${margin}%로 일괄 변경됐습니다.`);
+  } catch (e) {
+    alert('실패: ' + (e.message || e));
+  }
+}
+
+// ── 상세 패널 ────────────────────────────────────────────
+async function openDetail(id) {
+  const panel   = document.getElementById('detailPanel');
+  const content = document.getElementById('detailContent');
+  panel.classList.add('open');
+  content.innerHTML = '<div class="text-center text-muted" style="padding:40px">로딩 중...</div>';
+  try {
+    const d = await request('GET', `/my-products/${id}`);
+    const raw   = d.raw_data || {};
+    const storeUrl = d.market_platform === 'smartstore' && d.market_product_id
+      ? `https://smartstore.naver.com/main/products/${d.market_product_id}`
+      : '';
+    content.innerHTML = `
+      <div class="detail-section">
+        <div class="detail-section-title">상품 정보</div>
+        <div class="detail-kv"><span class="k">상품명</span><span>${escapeHtml(d.product_name || '—')}</span></div>
+        <div class="detail-kv"><span class="k">카테고리</span><span>${escapeHtml(d.category_name || '—')}</span></div>
+        <div class="detail-kv"><span class="k">옵션 수</span><span>${d.option_count || 0}개</span></div>
+        <div class="detail-kv"><span class="k">리뷰 수</span><span>${(d.review_count || 0).toLocaleString()}개</span></div>
+        ${storeUrl ? `<div class="detail-kv"><span class="k">마켓 링크</span><a href="${escapeHtml(storeUrl)}" target="_blank" rel="noopener" class="link" style="font-size:.8rem">바로가기 ↗</a></div>` : ''}
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title">가격 정보</div>
+        <div class="detail-kv"><span class="k">판매가</span><span style="font-weight:700">${fmtPrice(d.sale_price)}</span></div>
+        <div class="detail-kv"><span class="k">원가</span><span>${fmtPrice(d.original_price)}</span></div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title">마켓 연결</div>
+        <div class="detail-kv"><span class="k">플랫폼</span>${platformBadge(d.market_platform)}</div>
+        <div class="detail-kv"><span class="k">상점명</span><span>${escapeHtml(d.market_account_name || '—')}</span></div>
+        <div class="detail-kv"><span class="k">마켓 상품 ID</span><span style="font-size:.75rem;word-break:break-all">${escapeHtml(d.market_product_id || '—')}</span></div>
+        <div class="detail-kv"><span class="k">상태</span><span>${escapeHtml(d.status_label || d.status || '—')}</span></div>
+        <div class="detail-kv"><span class="k">동기화 일시</span><span>${fmtDate(d.synced_at)}</span></div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title">도매 매핑</div>
+        ${d.mapping_id
+          ? `<div class="detail-kv"><span class="k">도매 상품 ID</span><span>${escapeHtml(d.wholesale_product_id)}</span></div>
+             <div class="detail-kv"><span class="k">마진율</span><span style="font-weight:700;color:var(--accent)">${d.price_margin_rate.toFixed(1)}%</span></div>`
+          : `<div style="color:var(--text-muted);font-size:.83rem;padding:8px 0">아직 도매 상품과 매핑되지 않았습니다.</div>`
+        }
+        <div class="detail-kv"><span class="k">2차가공</span><span>${d.secondary_processed ? '완료' : '미완료'}</span></div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="openEditor(${id})">수정</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmHide(${id})">마켓에서 숨기기</button>
+      </div>
+    `;
+  } catch (e) {
+    content.innerHTML = `<div class="text-muted" style="padding:20px">오류: ${escapeHtml(e.message || '')}</div>`;
+  }
+}
+
+// ── CSV 내보내기 ─────────────────────────────────────────
+async function exportCSV() {
+  try {
+    const data  = await request('GET', '/my-products?page=1&page_size=5000');
+    const items = data.items || [];
+    const rows  = [
+      ['ID', '상품명', '마켓', '상점', '마켓상품ID', '판매가', '원가', '상태', '리뷰수', '도매매핑', '동기화일시'],
+      ...items.map(p => [
+        p.id, p.product_name, PLATFORM_LABELS[p.market_platform] || p.market_platform,
+        p.market_account_name, p.market_product_id,
+        p.sale_price, p.original_price, p.status_label,
+        p.review_count, p.mapping_id ? '매핑됨' : '미매핑', p.synced_at,
+      ]),
+    ];
+    const bom = '\uFEFF';
+    const csv = bom + rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `my_products_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  } catch (e) { alert('CSV 내보내기 실패: ' + (e.message || e)); }
+}
+
+// ── 토스트 ───────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  Object.assign(t.style, {
+    position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999,
+    background: 'var(--bg-card)', border: '1px solid var(--border-default)',
+    boxShadow: 'var(--shadow-xl)', padding: '10px 18px', borderRadius: 'var(--radius)',
+    fontSize: '.85rem', animation: 'fadeIn .2s',
+  });
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+// ── 이벤트 바인딩 ────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  initSyncStatus();
+  loadSummary();
+  loadTable();
+
+  document.getElementById('searchBtn').addEventListener('click', () => { _page = 1; loadTable(); });
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    ['fPlatform', 'fStatus', 'fKeyword'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.tagName === 'SELECT' ? (el.value = '') : (el.value = ''); }
+    });
+    document.getElementById('fSecondary').value = '';
+    document.getElementById('fSort').value = 'synced_at';
+    _page = 1; loadTable();
+  });
+  document.getElementById('fKeyword').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { _page = 1; loadTable(); }
+  });
+  document.getElementById('fPageSize').addEventListener('change', () => { _page = 1; loadTable(); });
+
+  // 전체 선택
+  ['checkAll', 'checkAllHead'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', e => selectAll(e.target.checked));
+  });
+
+  // 일괄 처리 버튼들
+  document.getElementById('bulkActivate')?.addEventListener('click', () => bulkAction('show'));
+  document.getElementById('bulkDeactivate')?.addEventListener('click', () => bulkAction('hide'));
+  document.getElementById('bulkEdit')?.addEventListener('click', openBulkEditor);
+  document.getElementById('bulkDelete')?.addEventListener('click', () => {
+    if (confirm(`${_selectedIds.size}개 상품을 마켓에서 숨기시겠습니까?`)) bulkAction('hide');
+  });
+  document.getElementById('bulkMarginBtn')?.addEventListener('click', openBulkMarginModal);
+
+  // 동기화 버튼
+  document.getElementById('syncAllBtn')?.addEventListener('click', syncAll);
+  document.getElementById('deleteStoreAllBtn')?.addEventListener('click', deleteCurrentStoreAll);
+  document.getElementById('deleteStoreLowBtn')?.addEventListener('click', deleteCurrentStoreLowSelling);
+
+  // 마진율 일괄 모달
+  document.getElementById('bulkMarginClose')?.addEventListener('click', () =>
+    document.getElementById('bulkMarginModal').classList.remove('open'));
+  document.getElementById('bulkMarginCancel')?.addEventListener('click', () =>
+    document.getElementById('bulkMarginModal').classList.remove('open'));
+  document.getElementById('bulkMarginSave')?.addEventListener('click', applyBulkMargin);
+
+  // 상세 패널
+  document.getElementById('detailPanelClose')?.addEventListener('click', () =>
+    document.getElementById('detailPanel').classList.remove('open'));
+
+  // CSV
+  document.getElementById('exportBtn')?.addEventListener('click', exportCSV);
+});
+</script>
+</body>
+</html>

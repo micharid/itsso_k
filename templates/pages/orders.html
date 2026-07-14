@@ -1,0 +1,682 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주문 관리 — ChannelP</title>
+<link rel="stylesheet" href="/assets/css/common.css?v=20260406d">
+<link rel="stylesheet" href="/assets/css/layout.css?v=20260406d?v=20260406c">
+<link rel="stylesheet" href="/assets/css/components.css?v=20260406d">
+<style>
+@media (max-width: 900px) {
+  .app-wrapper {
+    grid-template-areas: "header" "main" "footer";
+    grid-template-columns: 1fr;
+  }
+  .app-sidebar {
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    bottom: var(--footer-height);
+    width: min(280px, 82vw);
+    transform: translateX(-100%);
+    transition: transform .2s ease;
+    z-index: 220;
+    box-shadow: 0 18px 40px rgba(0,0,0,.35);
+  }
+  .app-wrapper.sidebar-open .app-sidebar {
+    transform: translateX(0);
+  }
+  .app-main {
+    min-width: 0;
+    padding: 14px;
+  }
+  .header-user {
+    display: none;
+  }
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .filter-item {
+    min-width: 100%;
+    max-width: 100%;
+  }
+}
+</style>
+</head>
+<body>
+<div class="app-wrapper">
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="header-left">
+      <button class="sidebar-toggle-btn" id="sidebarToggle"><span></span><span></span><span></span></button>
+      <span class="header-logo">ChannelP</span>
+    </div>
+    <div class="header-right">
+      <button class="icon-btn" id="notifBell">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="notif-badge" id="notifBadge" style="display:none">0</span>
+      </button>
+      <div class="header-user">
+        <span id="headerUsername">—</span>
+        <button class="btn btn-sm btn-ghost" id="logoutBtn">로그아웃</button>
+      </div>
+    </div>
+    <div class="notif-panel" id="notifPanel" style="display:none">
+      <div class="notif-panel-header"><span>알림</span><button class="btn btn-xs btn-ghost" id="markAllReadBtn">모두 읽음</button></div>
+      <ul class="notif-list" id="notifList"></ul>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <nav class="app-sidebar" id="appSidebar"></nav>
+
+  <!-- MAIN -->
+  <main class="app-main">
+    <div class="page-header">
+      <div class="breadcrumb"><span>홈</span> / <span>주문 관리</span></div>
+      <h1 class="page-title">주문 관리</h1>
+    </div>
+
+    <!-- 탭 -->
+    <div class="tabs tab-strip" id="orderTabs">
+      <button class="tab active" data-tab="orders">주문현황</button>
+      <button class="tab" data-tab="dispatches">발주현황</button>
+      <button class="tab" data-tab="tracking">송장현황</button>
+    </div>
+
+    <!-- ===== 주문현황 탭 ===== -->
+    <div class="tab-panel active" id="panel-orders">
+      <!-- 필터 -->
+      <div class="filter-area">
+        <div class="filter-header">
+          <span class="filter-title">검색 필터</span>
+          <button class="filter-toggle-btn">▼</button>
+        </div>
+        <div class="filter-body">
+          <div class="filter-row">
+            <div class="filter-item">
+              <label class="form-label">주문상태</label>
+              <select class="form-select" id="f_order_status">
+                <option value="">전체</option>
+                <option value="new">신규</option>
+                <option value="dispatch_pending">발주대기</option>
+                <option value="dispatched">발주완료</option>
+                <option value="tracking_registered">송장등록</option>
+                <option value="delivered">배송완료</option>
+                <option value="cancelled">취소</option>
+                <option value="return_requested">반품요청</option>
+                <option value="returned">반품완료</option>
+                <option value="error">오류</option>
+              </select>
+            </div>
+            <div class="filter-item">
+              <label class="form-label">발주상태</label>
+              <select class="form-select" id="f_dispatch_status">
+                <option value="">전체</option>
+                <option value="pending">대기</option>
+                <option value="cart_added">장바구니</option>
+                <option value="processing">처리중</option>
+                <option value="completed">완료</option>
+                <option value="failed">실패</option>
+                <option value="cancelled">취소</option>
+              </select>
+            </div>
+            <div class="filter-item">
+              <label class="form-label">마켓 계정</label>
+              <select class="form-select" id="f_market_account">
+                <option value="">전체</option>
+              </select>
+            </div>
+            <div class="filter-item">
+              <label class="form-label">주문번호</label>
+              <input type="text" class="form-input" id="f_order_id" placeholder="주문번호 검색">
+            </div>
+          </div>
+          <div class="filter-row">
+            <div class="filter-item">
+              <label class="form-label">주문일 (시작)</label>
+              <input type="date" class="form-input" id="f_date_from">
+            </div>
+            <div class="filter-item">
+              <label class="form-label">주문일 (종료)</label>
+              <input type="date" class="form-input" id="f_date_to">
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button class="btn btn-primary" id="searchOrdersBtn">검색</button>
+            <button class="btn btn-ghost filter-reset-btn">초기화</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-toolbar">
+        <span class="table-count" id="ordersCount">총 0건</span>
+        <div class="table-toolbar-right">
+          <select class="form-select select-pagesize" id="ordersPageSize">
+            <option value="20">20개</option>
+            <option value="50">50개</option>
+            <option value="100">100개</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>주문번호</th>
+              <th>마켓</th>
+              <th>상품명</th>
+              <th>옵션</th>
+              <th>수량</th>
+              <th>금액</th>
+              <th>주문상태</th>
+              <th>발주상태</th>
+              <th>주문일시</th>
+              <th>작업</th>
+            </tr>
+          </thead>
+          <tbody id="ordersTbody">
+            <tr><td colspan="10" class="text-center text-muted">데이터를 불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination" id="ordersPagination"></div>
+    </div>
+
+    <!-- ===== 발주현황 탭 ===== -->
+    <div class="tab-panel" id="panel-dispatches" style="display:none">
+      <div class="filter-area">
+        <div class="filter-header"><span class="filter-title">검색 필터</span><button class="filter-toggle-btn">▼</button></div>
+        <div class="filter-body">
+          <div class="filter-row">
+            <div class="filter-item">
+              <label class="form-label">발주상태</label>
+              <select class="form-select" id="fd_status">
+                <option value="">전체</option>
+                <option value="pending">대기</option>
+                <option value="cart_added">장바구니</option>
+                <option value="processing">처리중</option>
+                <option value="completed">완료</option>
+                <option value="failed">실패</option>
+                <option value="cancelled">취소</option>
+              </select>
+            </div>
+            <div class="filter-item">
+              <label class="form-label">도매몰</label>
+              <select class="form-select" id="fd_wholesale">
+                <option value="">전체</option>
+              </select>
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button class="btn btn-primary" id="searchDispatchBtn">검색</button>
+            <button class="btn btn-ghost filter-reset-btn">초기화</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-toolbar">
+        <span class="table-count" id="dispatchCount">총 0건</span>
+        <div class="table-toolbar-right">
+          <select class="form-select select-pagesize" id="dispatchPageSize">
+            <option value="20">20개</option><option value="50">50개</option><option value="100">100개</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>발주ID</th>
+              <th>주문번호</th>
+              <th>도매몰</th>
+              <th>도매 주문번호</th>
+              <th>상품명</th>
+              <th>수량</th>
+              <th>발주상태</th>
+              <th>발주일시</th>
+              <th>재시도</th>
+            </tr>
+          </thead>
+          <tbody id="dispatchTbody">
+            <tr><td colspan="9" class="text-center text-muted">데이터를 불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination" id="dispatchPagination"></div>
+    </div>
+
+    <!-- ===== 송장현황 탭 ===== -->
+    <div class="tab-panel" id="panel-tracking" style="display:none">
+      <div class="filter-area">
+        <div class="filter-header"><span class="filter-title">검색 필터</span><button class="filter-toggle-btn">▼</button></div>
+        <div class="filter-body">
+          <div class="filter-row">
+            <div class="filter-item">
+              <label class="form-label">送장 등록 여부</label>
+              <select class="form-select" id="ft_registered">
+                <option value="">전체</option>
+                <option value="yes">등록완료</option>
+                <option value="no">미등록</option>
+              </select>
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button class="btn btn-primary" id="searchTrackingBtn">검색</button>
+            <button class="btn btn-ghost filter-reset-btn">초기화</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-toolbar">
+        <span class="table-count" id="trackingCount">총 0건</span>
+        <div class="table-toolbar-right">
+          <select class="form-select select-pagesize" id="trackingPageSize">
+            <option value="20">20개</option><option value="50">50개</option><option value="100">100개</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>도매 주문번호</th>
+              <th>주문번호</th>
+              <th>마켓</th>
+              <th>상품명</th>
+              <th>택배사</th>
+              <th>송장번호</th>
+              <th>등록일시</th>
+              <th>마켓 등록상태</th>
+            </tr>
+          </thead>
+          <tbody id="trackingTbody">
+            <tr><td colspan="8" class="text-center text-muted">데이터를 불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination" id="trackingPagination"></div>
+    </div>
+
+  </main>
+
+  <!-- 주문 상세 모달 -->
+  <div class="modal-overlay" id="orderDetailModal" style="display:none">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3 class="modal-title">주문 상세</h3>
+        <button class="modal-close" id="closeOrderDetailBtn">&times;</button>
+      </div>
+      <div class="modal-body" id="orderDetailBody">로딩 중...</div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="manualDispatchBtn">수동 발주</button>
+        <button class="btn btn-ghost" id="closeOrderDetailBtn2">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 송장 수동 등록 모달 -->
+  <div class="modal-overlay" id="trackingModal" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">송장번호 수동 등록</h3>
+        <button class="modal-close" id="closeTrackingBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="trackingOrderId">
+        <div class="form-group">
+          <label class="form-label">택배사</label>
+          <input type="text" class="form-input" id="trackingCarrier" placeholder="예: CJ대한통운">
+        </div>
+        <div class="form-group">
+          <label class="form-label">송장번호</label>
+          <input type="text" class="form-input" id="trackingNumber" placeholder="송장번호 입력">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="submitTrackingBtn">등록</button>
+        <button class="btn btn-ghost" id="closeTrackingBtn2">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="app-footer">
+    <span class="footer-version" id="footerVersion">v1.0.0</span>
+    <span class="footer-divider">|</span>
+    <span class="status-dot-inline" id="footerDbStatus"></span> DB
+    <span class="footer-divider">|</span>
+    <span class="status-dot-inline" id="footerAutoStatus"></span> 자동화
+  </footer>
+</div>
+
+<script src="/assets/js/sidebar.js?v=20260406d?v=20260406c"></script>
+<script src="/assets/js/common.js?v=20260406d"></script>
+<script src="/assets/js/api.js?v=20260406d?v=20260406c"></script>
+<script src="/assets/js/auth.js?v=20260406d?v=20260406c"></script>
+<script src="/assets/js/theme.js?v=20260406d"></script>
+<script src="/assets/js/context_menu.js?v=20260406d"></script>
+<script src="/assets/js/filter.js?v=20260406c"></script>
+
+<script>
+// ─── 상태 ────────────────────────────────────────────────
+const state = {
+  orders: { page: 1, limit: 20, filters: {} },
+  dispatches: { page: 1, limit: 20, filters: {} },
+  tracking: { page: 1, limit: 20, filters: {} },
+  activeTab: 'orders'
+};
+
+// ─── 유틸 ─────────────────────────────────────────────────
+function escapeHtml(s) { return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function orderStatusBadge(s) {
+  const m = {
+    new: '신규', dispatch_pending: '발주대기', dispatched: '발주완료',
+    tracking_registered: '송장등록', delivered: '배송완료',
+    cancelled: '취소', return_requested: '반품요청', returned: '반품완료', error: '오류'
+  };
+  const c = {
+    new: 'new', dispatch_pending: 'warning', dispatched: 'warning',
+    tracking_registered: 'active', delivered: 'active',
+    cancelled: 'error', return_requested: 'error', returned: 'error', error: 'error'
+  };
+  return `<span class="status-badge status-${c[s]||'default'}">${escapeHtml(m[s]||s||'')}</span>`;
+}
+function dispatchStatusBadge(s) {
+  const m = {
+    pending: '대기', cart_added: '장바구니', cart_error: '장바구니오류',
+    processing: '처리중', completed: '완료', failed: '실패', cancelled: '취소'
+  };
+  const c = {
+    pending: 'warning', cart_added: 'warning', cart_error: 'error',
+    processing: 'warning', completed: 'active', failed: 'error', cancelled: 'error'
+  };
+  return `<span class="status-badge status-${c[s]||'default'}">${escapeHtml(m[s]||s||'')}</span>`;
+}
+
+// ─── 초기화 ───────────────────────────────────────────────
+(async () => {
+  if (!getAccessToken() && typeof refreshTokens === 'function') { await refreshTokens(); }
+  if (!getAccessToken()) { location.href = '/login.html'; return; }
+  const me = await API.auth.me().catch(() => null);
+  if (!me) { location.href = '/login.html'; return; }
+  document.getElementById('headerUsername').textContent = me.username || me.user_id;
+  applyMenuPermissions(me.user_type);
+  initSidebarToggle();
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+
+  // 알림 벨
+  document.getElementById('notifBell').addEventListener('click', () => {
+    const p = document.getElementById('notifPanel');
+    p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  });
+
+  // UI 설정
+  const uiS = await API.settings.getUI().catch(() => ({}));
+  if (uiS) applyUISettings(uiS);
+  initInactivityLogout(uiS?.inactivity_timeout_minutes || 30);
+
+  // 탭 전환
+  document.getElementById('orderTabs').querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // 필터 아코디언
+  document.querySelectorAll('.filter-header').forEach(h => {
+    h.addEventListener('click', () => {
+      const body = h.nextElementSibling;
+      const btn = h.querySelector('.filter-toggle-btn');
+      const open = body.style.display !== 'none';
+      body.style.display = open ? 'none' : 'block';
+      btn.textContent = open ? '▶' : '▼';
+    });
+  });
+
+  // 필터 초기화
+  document.querySelectorAll('.filter-reset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const panel = btn.closest('.tab-panel');
+      panel.querySelectorAll('select,input[type=text],input[type=date]').forEach(el => { el.value = ''; });
+    });
+  });
+
+  // 검색 버튼
+  document.getElementById('searchOrdersBtn').addEventListener('click', () => { state.orders.page=1; loadOrders(); });
+  document.getElementById('searchDispatchBtn').addEventListener('click', () => { state.dispatches.page=1; loadDispatches(); });
+  document.getElementById('searchTrackingBtn').addEventListener('click', () => { state.tracking.page=1; loadTracking(); });
+
+  // 페이지 사이즈
+  document.getElementById('ordersPageSize').addEventListener('change', e => { state.orders.limit=+e.target.value; state.orders.page=1; loadOrders(); });
+  document.getElementById('dispatchPageSize').addEventListener('change', e => { state.dispatches.limit=+e.target.value; state.dispatches.page=1; loadDispatches(); });
+  document.getElementById('trackingPageSize').addEventListener('change', e => { state.tracking.limit=+e.target.value; state.tracking.page=1; loadTracking(); });
+
+  // 모달
+  [document.getElementById('closeOrderDetailBtn'), document.getElementById('closeOrderDetailBtn2')].forEach(b => b?.addEventListener('click', () => { document.getElementById('orderDetailModal').style.display='none'; }));
+  [document.getElementById('closeTrackingBtn'), document.getElementById('closeTrackingBtn2')].forEach(b => b?.addEventListener('click', () => { document.getElementById('trackingModal').style.display='none'; }));
+  document.getElementById('submitTrackingBtn').addEventListener('click', submitTracking);
+  document.getElementById('manualDispatchBtn').addEventListener('click', manualDispatch);
+
+  // 컨텍스트 메뉴 이벤트 (context_menu.js에서 발생)
+  document.addEventListener('cm:order-detail', e => showOrderDetail(e.detail.id));
+  document.addEventListener('cm:order-tracking', e => showTrackingModal(e.detail.id));
+  document.addEventListener('cm:order-dispatch', e => manualDispatchById(e.detail.id));
+
+  // 마켓 계정 목록 로드
+  loadMarketAccounts();
+
+  // 첫 로드
+  loadOrders();
+  loadFooterStatus();
+})();
+
+function switchTab(tab) {
+  state.activeTab = tab;
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(p => { p.style.display = p.id === `panel-${tab}` ? 'block' : 'none'; p.classList.toggle('active', p.id === `panel-${tab}`); });
+  if (tab === 'orders') loadOrders();
+  else if (tab === 'dispatches') loadDispatches();
+  else if (tab === 'tracking') loadTracking();
+}
+
+async function loadMarketAccounts() {
+  const res = await API.platforms.list({ role: 'market' }).catch(() => ({ items: [] }));
+  const sel = document.getElementById('f_market_account');
+  (res.items || []).forEach(acc => {
+    const opt = document.createElement('option');
+    opt.value = acc.id; opt.textContent = acc.account_name;
+    sel.appendChild(opt);
+  });
+  const selD = document.getElementById('fd_wholesale');
+  const resW = await API.platforms.list({ role: 'wholesale' }).catch(() => ({ items: [] }));
+  (resW.items || []).forEach(acc => {
+    const opt = document.createElement('option');
+    opt.value = acc.id; opt.textContent = acc.account_name;
+    selD.appendChild(opt);
+  });
+}
+
+async function loadOrders() {
+  const tbody = document.getElementById('ordersTbody');
+  tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">로딩 중...</td></tr>';
+  const params = {
+    page: state.orders.page,
+    limit: state.orders.limit,
+    order_status: document.getElementById('f_order_status').value || undefined,
+    dispatch_status: document.getElementById('f_dispatch_status').value || undefined,
+    market_account_id: document.getElementById('f_market_account').value || undefined,
+    market_order_id: document.getElementById('f_order_id').value || undefined,
+    date_from: document.getElementById('f_date_from').value || undefined,
+    date_to: document.getElementById('f_date_to').value || undefined,
+  };
+  const res = await API.orders.list(params).catch(() => null);
+  if (!res) { tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">데이터 로드 실패</td></tr>'; return; }
+  document.getElementById('ordersCount').textContent = `총 ${(res.total||0).toLocaleString()}건`;
+  if (res.items?.length) {
+    tbody.innerHTML = res.items.map(o => `
+      <tr data-row-type="order" data-id="${o.id}">
+        <td>${escapeHtml(o.market_order_id??'')}</td>
+        <td>${escapeHtml(o.market_account_name??o.market_account_id??'')}</td>
+        <td class="text-ellipsis" style="max-width:180px">${escapeHtml(o.product_name??'')}</td>
+        <td class="text-ellipsis" style="max-width:120px">${escapeHtml(o.option_name??'—')}</td>
+        <td>${o.quantity??''}</td>
+        <td>${formatPrice(o.price??0)}</td>
+        <td>${orderStatusBadge(o.order_status)}</td>
+        <td>${dispatchStatusBadge(o.dispatch_status)}</td>
+        <td>${formatDateTime(o.ordered_at)}</td>
+        <td>
+          <button class="btn btn-xs btn-ghost" onclick="showOrderDetail('${o.id}')">상세</button>
+          ${o.dispatch_status==='pending'?`<button class="btn btn-xs btn-primary" onclick="manualDispatchById('${o.id}')">수동발주</button>`:''}
+        </td>
+      </tr>
+    `).join('');
+  } else {
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">결과 없음</td></tr>';
+  }
+  renderPagination('ordersPagination', state.orders.page, res.total||0, state.orders.limit, p => { state.orders.page=p; loadOrders(); });
+}
+
+async function loadDispatches() {
+  const tbody = document.getElementById('dispatchTbody');
+  tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">로딩 중...</td></tr>';
+  const params = {
+    page: state.dispatches.page,
+    limit: state.dispatches.limit,
+    status: document.getElementById('fd_status').value || undefined,
+    wholesale_account_id: document.getElementById('fd_wholesale').value || undefined,
+  };
+  const res = await API.orders.dispatches(params).catch(() => null);
+  if (!res) { tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">데이터 로드 실패</td></tr>'; return; }
+  document.getElementById('dispatchCount').textContent = `총 ${(res.total||0).toLocaleString()}건`;
+  if (res.items?.length) {
+    tbody.innerHTML = res.items.map(d => `
+      <tr>
+        <td>${d.id}</td>
+        <td>${escapeHtml(d.market_order_id??'')}</td>
+        <td>${escapeHtml(d.wholesale_account_name??'')}</td>
+        <td>${escapeHtml(d.wholesale_order_id??'—')}</td>
+        <td class="text-ellipsis" style="max-width:180px">${escapeHtml(d.product_name??'')}</td>
+        <td>${d.quantity??''}</td>
+        <td>${dispatchStatusBadge(d.status)}</td>
+        <td>${formatDateTime(d.dispatched_at)}</td>
+        <td>${d.status==='failed'?`<button class="btn btn-xs btn-warning" onclick="retryDispatch('${d.id}')">재시도</button>`:''}</td>
+      </tr>
+    `).join('');
+  } else {
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">결과 없음</td></tr>';
+  }
+  renderPagination('dispatchPagination', state.dispatches.page, res.total||0, state.dispatches.limit, p => { state.dispatches.page=p; loadDispatches(); });
+}
+
+async function loadTracking() {
+  const tbody = document.getElementById('trackingTbody');
+  tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">로딩 중...</td></tr>';
+  const registered = document.getElementById('ft_registered').value;
+  const params = {
+    page: state.tracking.page,
+    limit: state.tracking.limit,
+    registered: registered || undefined,
+  };
+  const res = await API.orders.trackingList(params).catch(() => null);
+  if (!res) { tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">데이터 로드 실패</td></tr>'; return; }
+  document.getElementById('trackingCount').textContent = `총 ${(res.total||0).toLocaleString()}건`;
+  if (res.items?.length) {
+    tbody.innerHTML = res.items.map(t => `
+      <tr>
+        <td>${escapeHtml(t.wholesale_order_id??'')}</td>
+        <td>${escapeHtml(t.market_order_id??'')}</td>
+        <td>${escapeHtml(t.market_account_name??'')}</td>
+        <td class="text-ellipsis" style="max-width:180px">${escapeHtml(t.product_name??'')}</td>
+        <td>${escapeHtml(t.carrier??'—')}</td>
+        <td>
+          ${escapeHtml(t.tracking_number??'—')}
+          ${t.tracking_number?`<button class="btn btn-xs btn-ghost" onclick="copyToClipboard('${escapeHtml(t.tracking_number)}')">복사</button>`:''}
+        </td>
+        <td>${formatDateTime(t.registered_at)}</td>
+        <td>${t.market_registered?'<span class="status-badge status-active">등록완료</span>':'<span class="status-badge status-warning">미등록</span>'}</td>
+      </tr>
+    `).join('');
+  } else {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">결과 없음</td></tr>';
+  }
+  renderPagination('trackingPagination', state.tracking.page, res.total||0, state.tracking.limit, p => { state.tracking.page=p; loadTracking(); });
+}
+
+async function showOrderDetail(id) {
+  const modal = document.getElementById('orderDetailModal');
+  const body = document.getElementById('orderDetailBody');
+  modal.dataset.orderId = id;
+  body.innerHTML = '로딩 중...';
+  modal.style.display = 'flex';
+  const data = await API.orders.detail(id).catch(() => null);
+  if (!data) { body.innerHTML = '<p class="text-muted">데이터 로드 실패</p>'; return; }
+  body.innerHTML = `
+    <div class="detail-grid">
+      <div class="detail-row"><span class="detail-label">주문번호</span><span>${escapeHtml(data.market_order_id??'')}</span></div>
+      <div class="detail-row"><span class="detail-label">마켓</span><span>${escapeHtml(data.market_account_name??'')}</span></div>
+      <div class="detail-row"><span class="detail-label">상품명</span><span>${escapeHtml(data.product_name??'')}</span></div>
+      <div class="detail-row"><span class="detail-label">옵션</span><span>${escapeHtml(data.option_name??'—')}</span></div>
+      <div class="detail-row"><span class="detail-label">수량</span><span>${data.quantity??''}</span></div>
+      <div class="detail-row"><span class="detail-label">금액</span><span>${formatPrice(data.price??0)}</span></div>
+      <div class="detail-row"><span class="detail-label">주문상태</span><span>${orderStatusBadge(data.order_status)}</span></div>
+      <div class="detail-row"><span class="detail-label">발주상태</span><span>${dispatchStatusBadge(data.dispatch_status)}</span></div>
+      <div class="detail-row"><span class="detail-label">수령인</span><span>${escapeHtml(data.receiver_name??'')}</span></div>
+      <div class="detail-row"><span class="detail-label">연락처</span><span>${escapeHtml(data.receiver_phone??'')}</span></div>
+      <div class="detail-row"><span class="detail-label">배송지</span><span>${escapeHtml(data.shipping_address??'')}</span></div>
+      <div class="detail-row"><span class="detail-label">주문일시</span><span>${formatDateTime(data.ordered_at)}</span></div>
+    </div>
+  `;
+  document.getElementById('manualDispatchBtn').style.display = data.dispatch_status === 'pending' ? 'inline-flex' : 'none';
+}
+
+function showTrackingModal(orderId) {
+  document.getElementById('trackingOrderId').value = orderId;
+  document.getElementById('trackingCarrier').value = '';
+  document.getElementById('trackingNumber').value = '';
+  document.getElementById('trackingModal').style.display = 'flex';
+}
+
+async function submitTracking() {
+  const orderId = document.getElementById('trackingOrderId').value;
+  const carrier = document.getElementById('trackingCarrier').value.trim();
+  const number = document.getElementById('trackingNumber').value.trim();
+  if (!carrier || !number) { showToast('택배사와 송장번호를 입력하세요.', 'warning'); return; }
+  const res = await API.orders.registerTracking(orderId, { carrier, tracking_number: number }).catch(e => ({ error: e.message }));
+  if (res?.error) { showToast('등록 실패: ' + res.error, 'error'); return; }
+  showToast('송장번호가 등록되었습니다.', 'success');
+  document.getElementById('trackingModal').style.display = 'none';
+  if (state.activeTab === 'tracking') loadTracking();
+  else loadOrders();
+}
+
+async function manualDispatch() {
+  const id = document.getElementById('orderDetailModal').dataset.orderId;
+  if (!id) return;
+  await manualDispatchById(id);
+  document.getElementById('orderDetailModal').style.display = 'none';
+}
+
+async function manualDispatchById(id) {
+  const res = await API.orders.manualDispatch(id).catch(e => ({ error: e.message }));
+  if (res?.error) { showToast('수동 발주 실패: ' + res.error, 'error'); return; }
+  showToast('수동 발주 요청이 완료되었습니다.', 'success');
+  loadOrders();
+}
+
+async function retryDispatch(dispatchId) {
+  const res = await API.orders.retryDispatch(dispatchId).catch(e => ({ error: e.message }));
+  if (res?.error) { showToast('재시도 실패: ' + res.error, 'error'); return; }
+  showToast('재시도 요청이 완료되었습니다.', 'success');
+  loadDispatches();
+}
+
+async function loadFooterStatus() {
+  const data = await API.automation.status().catch(() => null);
+  document.getElementById('footerDbStatus').className = data ? 'status-dot-inline status-dot-active' : 'status-dot-inline status-dot-error';
+  document.getElementById('footerAutoStatus').className = `status-dot-inline ${data?.is_paused ? 'status-dot-warning' : 'status-dot-active'}`;
+}
+</script>
+</body>
+</html>
